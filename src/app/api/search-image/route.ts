@@ -8,48 +8,40 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Query parameter q is required' }, { status: 400 });
   }
 
+  // Mengambil API Key dari akun Google Anda (diatur di Vercel Environment Variables)
+  const apiKey = process.env.GOOGLE_API_KEY;
+  const searchEngineId = process.env.GOOGLE_CX;
+
+  if (!apiKey || !searchEngineId) {
+    return NextResponse.json({ 
+      error: 'API Key Google belum diatur.', 
+      details: 'Silakan tambahkan GOOGLE_API_KEY dan GOOGLE_CX di pengaturan Environment Variables Vercel Anda.' 
+    }, { status: 500 });
+  }
+
   try {
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-    
-    // Pencarian Web Otomatis
-    const res = await fetch(`https://www.bing.com/images/search?q=${encodeURIComponent(q)}&qft=+filterui:imagesize-large`, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
-      }
-    });
+    // Menggunakan Google Custom Search API yang 100% akurat (Pencarian Gambar Google Asli)
+    const res = await fetch(`https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${searchEngineId}&q=${encodeURIComponent(q)}&searchType=image&num=10`);
     
     if (!res.ok) {
-      throw new Error(`Failed to fetch from search engine: ${res.statusText}`);
+      const errorData = await res.json();
+      throw new Error(errorData.error?.message || 'Gagal mengambil gambar dari Google API');
     }
 
-    const html = await res.text();
-    const regex = /murl&quot;:&quot;(http[^&]+)&quot;/g;
-    let match;
+    const data = await res.json();
     const images: string[] = [];
     
-    while ((match = regex.exec(html)) !== null) {
-      if (!images.includes(match[1])) {
-        if (match[1].match(/\.(jpeg|jpg|png|webp)/i)) {
-          images.push(match[1]);
+    if (data.items && data.items.length > 0) {
+      for (const item of data.items) {
+        if (item.link) {
+          images.push(item.link);
         }
-      }
-      if (images.length >= 10) break; // Mengambil 10 gambar teratas
-    }
-
-    // Fallback if the regex doesn't match the first format
-    if (images.length === 0) {
-      const fallbackRegex = /murl":"(http[^"]+)"/g;
-      while ((match = fallbackRegex.exec(html)) !== null) {
-        if (!images.includes(match[1]) && match[1].match(/\.(jpeg|jpg|png|webp)/i)) {
-          images.push(match[1]);
-        }
-        if (images.length >= 10) break;
       }
     }
 
     return NextResponse.json({ images });
   } catch (error: any) {
     console.error('Image search error:', error);
-    return NextResponse.json({ error: 'Failed to search images', details: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Gagal mencari gambar', details: error.message }, { status: 500 });
   }
 }
