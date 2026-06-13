@@ -74,24 +74,28 @@ export default function AdminDashboard({ products, categories, settings }: { pro
             onClick={() => setActiveTab('katalog')}
             style={{ textAlign: 'left', background: 'none', borderTop: 'none', borderRight: 'none', cursor: 'pointer' }}
           >
-            📋 Manajemen Menu
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+            Manajemen Menu
           </button>
           <button
             className={`admin-nav-item ${activeTab === 'kategori' ? 'active' : ''}`}
             onClick={() => setActiveTab('kategori')}
             style={{ textAlign: 'left', background: 'none', borderTop: 'none', borderRight: 'none', cursor: 'pointer' }}
           >
-            🗂️ Kategori Menu
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+            Kategori Menu
           </button>
           <button
             className={`admin-nav-item ${activeTab === 'pengaturan' ? 'active' : ''}`}
             onClick={() => setActiveTab('pengaturan')}
             style={{ textAlign: 'left', background: 'none', borderTop: 'none', borderRight: 'none', cursor: 'pointer' }}
           >
-            ⚙️ Pengaturan Website
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            Pengaturan Website
           </button>
           <a href="/" target="_blank" className="admin-nav-item" style={{ marginTop: 'auto', borderLeft: 'none' }}>
-            🌐 Lihat Website ↗
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+            Lihat Website ↗
           </a>
         </div>
       </div>
@@ -132,37 +136,39 @@ export default function AdminDashboard({ products, categories, settings }: { pro
 
             <div className="admin-card">
               <SectionTitle>Daftar Menu ({products.length} item)</SectionTitle>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {products.length === 0 && (
-                  <div style={{ textAlign: 'center', padding: '32px', color: 'var(--text-secondary)' }}>
-                    Belum ada menu. Tambahkan menu pertama di atas.
-                  </div>
-                )}
-                {products.map(p => (
-                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', border: '1px solid var(--border-color)', borderRadius: '8px', background: '#fff', gap: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
-                      <img src={p.imageUrl || 'https://via.placeholder.com/50'} alt="" style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '8px', flexShrink: 0 }} />
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-                        <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                          {p.category?.name} &bull; Rp {p.price.toLocaleString('id-ID')}
+              {products.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '32px', color: 'var(--text-secondary)' }}>
+                  Belum ada menu. Tambahkan menu pertama di atas.
+                </div>
+              ) : (
+                <div className="product-grid">
+                  {products.map(p => (
+                    <div key={p.id} className="product-card">
+                      <div className="product-image-container">
+                        <img src={p.imageUrl || 'https://via.placeholder.com/300?text=No+Image'} alt={p.name} className="product-image" />
+                      </div>
+                      <div className="product-info">
+                        <div className="product-name">{p.name}</div>
+                        <div className="product-price">Rp {p.price.toLocaleString('id-ID')}</div>
+                        <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '14px' }}>{p.category?.name}</div>
+                        <div className="product-card-action">
+                          <button
+                            onClick={async () => {
+                              if (confirm('Hapus menu ini? Tindakan ini tidak bisa dibatalkan.')) {
+                                await deleteProduct(p.id)
+                              }
+                            }}
+                            className="btn btn-outline"
+                            style={{ color: 'red', borderColor: 'red', width: '100%' }}
+                          >
+                            Hapus Menu
+                          </button>
                         </div>
                       </div>
                     </div>
-                    <button
-                      onClick={async () => {
-                        if (confirm('Hapus menu ini? Tindakan ini tidak bisa dibatalkan.')) {
-                          await deleteProduct(p.id)
-                        }
-                      }}
-                      className="btn btn-outline btn-sm"
-                      style={{ color: 'red', borderColor: 'red', flexShrink: 0 }}
-                    >
-                      Hapus
-                    </button>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -191,15 +197,18 @@ export default function AdminDashboard({ products, categories, settings }: { pro
                 )}
                 {categories.map(c => (
                   <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', border: '1px solid var(--border-color)', borderRadius: '8px', background: '#fff' }}>
-                    <div style={{ fontWeight: 600 }}>🗂️ {c.name}</div>
+                    <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--primary-color)' }}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                      {c.name}
+                    </div>
                     <button
                       onClick={async () => {
                         if (confirm('Hapus kategori ini? Menu yang menggunakan kategori ini mungkin terpengaruh.')) {
                           await deleteCategory(c.id)
                         }
                       }}
-                      className="btn btn-outline btn-sm"
-                      style={{ color: 'red', borderColor: 'red', flexShrink: 0 }}
+                      className="btn btn-outline"
+                      style={{ color: 'red', borderColor: 'red', flexShrink: 0, width: 'auto', padding: '6px 16px' }}
                     >
                       Hapus
                     </button>
