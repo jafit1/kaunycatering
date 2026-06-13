@@ -29,6 +29,8 @@ export default function AdminDashboard({ products, categories, settings }: { pro
   const [searchImagesResult, setSearchImagesResult] = useState<string[]>([])
   const [isSearching, setIsSearching] = useState(false)
 
+  const [itemToDelete, setItemToDelete] = useState<{ type: 'product' | 'category', id: string, name: string } | null>(null)
+
   const handleSearchImages = async () => {
     if (!newMenuName) {
       alert('Isi nama menu terlebih dahulu untuk mencari gambar.')
@@ -203,11 +205,7 @@ export default function AdminDashboard({ products, categories, settings }: { pro
                         <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '14px' }}>{p.category?.name}</div>
                         <div className="product-card-action">
                           <button
-                            onClick={async () => {
-                              if (confirm('Hapus menu ini? Tindakan ini tidak bisa dibatalkan.')) {
-                                await deleteProduct(p.id)
-                              }
-                            }}
+                            onClick={() => setItemToDelete({ type: 'product', id: p.id, name: p.name })}
                             className="btn btn-outline"
                             style={{ color: 'red', borderColor: 'red', width: '100%' }}
                           >
@@ -252,11 +250,7 @@ export default function AdminDashboard({ products, categories, settings }: { pro
                       {c.name}
                     </div>
                     <button
-                      onClick={async () => {
-                        if (confirm('Hapus kategori ini? Menu yang menggunakan kategori ini mungkin terpengaruh.')) {
-                          await deleteCategory(c.id)
-                        }
-                      }}
+                      onClick={() => setItemToDelete({ type: 'category', id: c.id, name: c.name })}
                       className="btn btn-outline"
                       style={{ color: 'red', borderColor: 'red', flexShrink: 0, width: 'auto', padding: '6px 16px' }}
                     >
@@ -370,6 +364,52 @@ export default function AdminDashboard({ products, categories, settings }: { pro
           </div>
         )}
       </div>
+
+      {/* MODAL KONFIRMASI HAPUS */}
+      {itemToDelete && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.6)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999, padding: '20px'
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: '16px', padding: '32px',
+            maxWidth: '400px', width: '100%',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
+            textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
+            <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '12px', color: 'var(--text-main)' }}>
+              Hapus {itemToDelete.type === 'product' ? 'Menu' : 'Kategori'}?
+            </h3>
+            <p style={{ fontSize: '15px', color: 'var(--text-secondary)', marginBottom: '24px', lineHeight: 1.5 }}>
+              Apakah Anda yakin ingin menghapus <strong>"{itemToDelete.name}"</strong>? <br />
+              Tindakan ini permanen dan tidak bisa dikembalikan.
+            </p>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button 
+                onClick={() => setItemToDelete(null)}
+                className="btn btn-outline" 
+                style={{ flex: 1 }}
+              >
+                Batal
+              </button>
+              <button 
+                onClick={async () => {
+                  if (itemToDelete.type === 'product') await deleteProduct(itemToDelete.id)
+                  if (itemToDelete.type === 'category') await deleteCategory(itemToDelete.id)
+                  setItemToDelete(null)
+                }}
+                className="btn" 
+                style={{ flex: 1, backgroundColor: '#E53E3E', color: '#fff' }}
+              >
+                Ya, Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
