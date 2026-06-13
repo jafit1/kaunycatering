@@ -2,12 +2,16 @@
 
 import { useState, useMemo, useEffect } from "react"
 
+type Variant = { id: string, name: string, price: number }
 type Product = {
   id: string
   name: string
   price: number
   imageUrl: string | null
   categories?: { name: string }[]
+  hasVariants?: boolean
+  variantType?: string | null
+  variants?: Variant[]
 }
 
 type SnackBox = {
@@ -124,6 +128,8 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
   
   // Product Modal (Image 2 equivalent)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [selectedVariantId, setSelectedVariantId] = useState<string>('')
+  const [modalMode, setModalMode] = useState<'cart' | 'snack_box'>('snack_box')
 
   // Grand Checkout
   const [showCheckout, setShowCheckout] = useState(false)
@@ -164,43 +170,68 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(price)
   }
 
-  // --- Normal Cart Logic ---
-  const addToNormalCart = (product: Product) => {
-    setNormalCart(prev => ({ ...prev, [product.id]: 1 }))
-    showToast(`${product.name} ditambahkan ke keranjang!`, 'success')
-    setCartAnimating(true)
-    setTimeout(() => setCartAnimating(false), 300)
+  const getCartItemInfo = (cartKey: string) => {
+    const [pId, vId] = cartKey.split('__')
+    const p = initialProducts.find(x => x.id === pId)
+    if (!p) return null
+    if (vId && p.variants) {
+      const v = p.variants.find(x => x.id === vId)
+      if (v) {
+        return { product: p, variant: v, name: `${p.name} - ${v.name}`, price: p.variantType === 'DIFFERENT_PRICE' ? v.price : p.price }
+      }
+    }
+    return { product: p, variant: null, name: p.name, price: p.price }
   }
 
-  const updateNormalCartQty = (productId: string, qty: number) => {
+  // --- Normal Cart Logic ---
+  const addToNormalCart = (product: Product, variantId?: string) => {
+    const key = variantId ? `${product.id}__${variantId}` : product.id
+    setNormalCart(prev => ({ ...prev, [key]: (prev[key] || 0) + 1 }))
+    
+    const variantName = variantId ? ` - ${product.variants?.find(v => v.id === variantId)?.name}` : ''
+    showToast(`${product.name}${variantName} ditambahkan ke keranjang!`, 'success')
+    
+    setCartAnimating(true)
+    setTimeout(() => setCartAnimating(false), 300)
+    setSelectedProduct(null)
+  }
+
+  const updateNormalCartQty = (cartKey: string, qty: number) => {
     if (qty <= 0) {
       setNormalCart(prev => {
         const next = { ...prev }
-        delete next[productId]
+        delete next[cartKey]
         return next
       })
-      const p = initialProducts.find(p => p.id === productId)
-      if (p) showToast(`${p.name} dihapus dari keranjang`, 'success')
+      const info = getCartItemInfo(cartKey)
+      if (info) showToast(`${info.name} dihapus dari keranjang`, 'success')
     } else {
-      setNormalCart(prev => ({ ...prev, [productId]: qty }))
+      setNormalCart(prev => ({ ...prev, [cartKey]: qty }))
     }
   }
 
   const normalCartTotalItems = Object.values(normalCart).reduce((a, b) => a + b, 0)
-  const normalCartTotalPrice = Object.entries(normalCart).reduce((sum, [id, qty]) => {
-    const p = initialProducts.find(p => p.id === id)
-    return sum + (p?.price || 0) * qty
+  const normalCartTotalPrice = Object.entries(normalCart).reduce((sum, [key, qty]) => {
+    const info = getCartItemInfo(key)
+    return sum + (info?.price || 0) * qty
   }, 0)
 
   // --- Box Builder Logic ---
-  const openProductModal = (product: Product) => {
+  const openProductModal = (product: Product, mode: 'cart' | 'snack_box') => {
     setSelectedProduct(product)
+    setModalMode(mode)
+    if (product.hasVariants && product.variants && product.variants.length > 0) {
+      setSelectedVariantId(product.variants[0].id)
+    } else {
+      setSelectedVariantId('')
+    }
   }
 
-  const addToDraftBox = (product: Product) => {
-    setDraftBox(prev => ({ ...prev, [product.id]: (prev[product.id] || 0) + 1 }))
+  const addToDraftBox = (product: Product, variantId?: string) => {
+    const key = variantId ? `${product.id}__${variantId}` : product.id
+    setDraftBox(prev => ({ ...prev, [key]: (prev[key] || 0) + 1 }))
+    showToast(`${product.name} dimasukkan ke Snack Box!`, 'success')
     setSelectedProduct(null)
-    showToast(`${product.name} dimasukkan ke racikan box!`, 'success')
   }
 
   const updateDraftBoxQty = (productId: string, qty: number) => {
@@ -397,15 +428,15 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
                     </thead>
                     <tbody>
                       {Object.entries(draftBox).map(([id, qty]) => {
-                        const p = initialProducts.find(p => p.id === id)
-                        if (!p) return null
+                        const info = getCartItemInfo(id)
+                        if (!info || !info.product) return null
                         return (
                           <tr key={id}>
                             <td>
-                              <img src={p.imageUrl || 'https://via.placeholder.com/60'} alt={p.name} className="table-image" />
+                              <img src={info.product.imageUrl || 'https://via.placeholder.com/60'} alt={info.name} className="table-image" />
                             </td>
                             <td>
-                              <div className="table-item-name">{p.name}</div>
+                              <div className="table-item-name">{info.name}</div>
                               <div style={{ marginTop: '6px' }}>
                                 <QuantitySelector 
                                   value={qty} 
@@ -414,8 +445,8 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
                                 />
                               </div>
                             </td>
-                            <td>Standar</td>
-                            <td>{formatPrice(p.price * qty)}</td>
+                            <td>{info.variant ? info.variant.name : 'Standar'}</td>
+                            <td>{formatPrice(info.price * qty)}</td>
                             <td style={{ textAlign: 'center' }}>
                               <button className="remove-btn" onClick={() => removeFromDraftBox(id)} aria-label="Remove item">
                                 &times;
@@ -459,7 +490,7 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
                     
                     <div className="product-card-action">
                       {isBuildingBox ? (
-                        <button className="btn btn-add-box" onClick={() => openProductModal(p)}>
+                        <button className="btn btn-add-box" onClick={() => openProductModal(p, 'snack_box')}>
                           Masukkan ke Snack Box
                         </button>
                       ) : (
@@ -470,7 +501,13 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
                             onRemove={() => updateNormalCartQty(p.id, 0)}
                           />
                         ) : (
-                          <button className="btn btn-add-cart" onClick={() => addToNormalCart(p)}>
+                          <button className="btn btn-add-cart" onClick={() => {
+                            if (p.hasVariants) {
+                              openProductModal(p, 'cart')
+                            } else {
+                              addToNormalCart(p)
+                            }
+                          }}>
                             Tambah ke Keranjang
                           </button>
                         )
@@ -485,7 +522,7 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
       </div>
 
       {/* Product Details Modal (Image 2 - HTML Replacement) */}
-      {selectedProduct && isBuildingBox && (
+      {selectedProduct && (
         <div className="modal-overlay" onClick={() => setSelectedProduct(null)}>
           <div className="modal-content product-modal" onClick={e => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setSelectedProduct(null)}>&times;</button>
@@ -495,15 +532,38 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
               </div>
               <div className="modal-details">
                 <div className="modal-title">{selectedProduct.name}</div>
-                <div className="modal-select-wrapper">
-                  <label className="form-label" style={{ fontSize: '12px' }}>Pilih Ukuran</label>
-                  <select className="form-input" style={{ width: '100%', borderRadius: '8px' }}>
-                    <option>Standar</option>
-                  </select>
+                
+                {selectedProduct.hasVariants && selectedProduct.variants && selectedProduct.variants.length > 0 && (
+                  <div className="modal-select-wrapper">
+                    <label className="form-label" style={{ fontSize: '12px' }}>Pilih Varian / Ukuran</label>
+                    <select 
+                      className="form-input" 
+                      style={{ width: '100%', borderRadius: '8px' }}
+                      value={selectedVariantId}
+                      onChange={e => setSelectedVariantId(e.target.value)}
+                    >
+                      {selectedProduct.variants.map(v => (
+                        <option key={v.id} value={v.id}>{v.name} {selectedProduct.variantType === 'DIFFERENT_PRICE' ? `- ${formatPrice(v.price)}` : ''}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="modal-price">
+                  {selectedProduct.hasVariants && selectedProduct.variantType === 'DIFFERENT_PRICE'
+                    ? formatPrice(selectedProduct.variants?.find(v => v.id === selectedVariantId)?.price || 0)
+                    : formatPrice(selectedProduct.price)}
                 </div>
-                <div className="modal-price">{formatPrice(selectedProduct.price)}</div>
                 <div className="modal-actions">
-                  <button className="btn" onClick={() => addToDraftBox(selectedProduct)}>Masukkan ke Snack Box</button>
+                  <button className="btn" onClick={() => {
+                    if (modalMode === 'snack_box') {
+                      addToDraftBox(selectedProduct, selectedProduct.hasVariants ? selectedVariantId : undefined)
+                    } else {
+                      addToNormalCart(selectedProduct, selectedProduct.hasVariants ? selectedVariantId : undefined)
+                    }
+                  }}>
+                    {modalMode === 'snack_box' ? 'Masukkan ke Snack Box' : 'Tambah ke Keranjang'}
+                  </button>
                   <button className="btn btn-outline" onClick={() => setSelectedProduct(null)}>Batal</button>
                 </div>
               </div>
@@ -586,13 +646,13 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
                     <div className="summary-section">
                       <div className="section-title">Produk Satuan</div>
                       {Object.entries(normalCart).map(([id, qty]) => {
-                        const p = initialProducts.find(p => p.id === id)
-                        if (!p) return null
+                        const info = getCartItemInfo(id)
+                        if (!info || !info.product) return null
                         return (
                           <div key={id} className="summary-item-row">
                             <div className="summary-item-info">
-                              <span className="summary-item-name">{p.name}</span>
-                              <span className="summary-item-price">{formatPrice(p.price)}</span>
+                              <span className="summary-item-name">{info.name}</span>
+                              <span className="summary-item-price">{formatPrice(info.price)}</span>
                             </div>
                             <div className="summary-item-qty">
                               <QuantitySelector 

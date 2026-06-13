@@ -3,7 +3,7 @@ import Catalog from "./Catalog"
 
 export default async function Home() {
   const products = await prisma.product.findMany({
-    include: { categories: true },
+    include: { categories: true, variants: true },
     orderBy: { name: 'asc' }
   })
   const settings = await prisma.setting.findMany()

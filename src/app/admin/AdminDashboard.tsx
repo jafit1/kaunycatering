@@ -4,7 +4,8 @@ import { useState } from "react"
 import { addProduct, deleteProduct, updateSetting, addCategory, deleteCategory } from "./actions"
 
 type Category = { id: string, name: string }
-type Product = { id: string, name: string, price: number, imageUrl: string | null, categories?: Category[] }
+type Variant = { id: string, name: string, price: number }
+type Product = { id: string, name: string, price: number, imageUrl: string | null, categories?: Category[], hasVariants?: boolean, variantType?: string | null, variants?: Variant[] }
 type Setting = { id: string, key: string, value: string }
 
 export default function AdminDashboard({ products, categories, settings }: { products: Product[], categories: Category[], settings: Setting[] }) {
@@ -36,11 +37,41 @@ export default function AdminDashboard({ products, categories, settings }: { pro
   }
 
   const [newMenuName, setNewMenuName] = useState('')
+  const [newMenuPrice, setNewMenuPrice] = useState('')
   const [newMenuImageUrl, setNewMenuImageUrl] = useState('')
   const [searchImagesResult, setSearchImagesResult] = useState<string[]>([])
   const [isSearching, setIsSearching] = useState(false)
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
+  
+  const [editingProductId, setEditingProductId] = useState<string | null>(null)
+  const [hasVariants, setHasVariants] = useState(false)
+  const [variantType, setVariantType] = useState<'SAME_PRICE' | 'DIFFERENT_PRICE'>('SAME_PRICE')
+  const [variants, setVariants] = useState<{name: string, price: string}[]>([])
 
   const [itemToDelete, setItemToDelete] = useState<{ type: 'product' | 'category', id: string, name: string } | null>(null)
+
+  const handleEditClick = (p: Product) => {
+    setEditingProductId(p.id)
+    setNewMenuName(p.name)
+    setNewMenuPrice(String(p.price))
+    setNewMenuImageUrl(p.imageUrl || '')
+    setSelectedCategories(p.categories?.map(c => c.id) || [])
+    setHasVariants(p.hasVariants || false)
+    setVariantType((p.variantType as any) || 'SAME_PRICE')
+    setVariants(p.variants?.map(v => ({ name: v.name, price: String(v.price) })) || [])
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const resetForm = () => {
+    setEditingProductId(null)
+    setNewMenuName('')
+    setNewMenuPrice('')
+    setNewMenuImageUrl('')
+    setSelectedCategories([])
+    setHasVariants(false)
+    setVariantType('SAME_PRICE')
+    setVariants([])
+  }
 
   const handleSearchImages = async () => {
     if (!newMenuName) {
@@ -66,17 +97,33 @@ export default function AdminDashboard({ products, categories, settings }: { pro
   const handleAddProduct = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
-    const categoryIds = formData.getAll('categories')
-    if (categoryIds.length === 0) {
+    
+    // Add selected categories
+    formData.delete('categories') // clear default checkbox behavior
+    selectedCategories.forEach(id => formData.append('categories', id))
+    
+    if (selectedCategories.length === 0) {
       showToast('Pilih minimal satu kategori!', 'error')
       return
     }
-    await addProduct(formData)
-    e.currentTarget.reset()
-    setNewMenuName('')
-    setNewMenuImageUrl('')
-    setSearchImagesResult([])
-    showToast('Menu berhasil ditambahkan!', 'success')
+
+    formData.set('hasVariants', String(hasVariants))
+    if (hasVariants) {
+      formData.set('variantType', variantType)
+      formData.set('variants', JSON.stringify(variants))
+    }
+
+    if (editingProductId) {
+      formData.set('id', editingProductId)
+      // Import updateProduct at top of file, or assume it's imported via actions
+      const { updateProduct } = await import('./actions')
+      await updateProduct(formData)
+      showToast('Menu berhasil diperbarui!', 'success')
+    } else {
+      await addProduct(formData)
+      showToast('Menu berhasil ditambahkan!', 'success')
+    }
+    resetForm()
   }
 
   const handleAddCategory = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -178,16 +225,65 @@ export default function AdminDashboard({ products, categories, settings }: { pro
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', padding: '12px', border: '1px solid var(--border-color)', borderRadius: '8px', background: '#fff' }}>
                       {categories.map(c => (
                         <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px' }}>
-                          <input type="checkbox" name="categories" value={c.id} style={{ width: '18px', height: '18px', cursor: 'pointer' }} />
+                          <input 
+                            type="checkbox" 
+                            name="categories" 
+                            value={c.id} 
+                            checked={selectedCategories.includes(c.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedCategories([...selectedCategories, c.id])
+                              else setSelectedCategories(selectedCategories.filter(id => id !== c.id))
+                            }}
+                            style={{ width: '18px', height: '18px', cursor: 'pointer' }} 
+                          />
                           {c.name}
                         </label>
                       ))}
                     </div>
                   </div>
                   <div className="form-group" style={{ flex: 1, minWidth: '140px' }}>
-                    <label className="form-label">Harga (Rp)</label>
-                    <input name="price" type="number" className="form-input" required placeholder="Contoh: 15000" />
+                    <label className="form-label">Harga Dasar (Rp)</label>
+                    <input name="price" type="number" value={newMenuPrice} onChange={e => setNewMenuPrice(e.target.value)} className="form-input" required={!hasVariants || variantType === 'SAME_PRICE'} placeholder="Contoh: 15000" />
+                    {hasVariants && variantType === 'DIFFERENT_PRICE' && <small style={{color:'var(--text-secondary)'}}>Biarkan 0 jika harga murni bergantung pada varian.</small>}
                   </div>
+                </div>
+
+                {/* Variants Section */}
+                <div style={{ marginTop: '16px', marginBottom: '16px', padding: '16px', border: '1px solid var(--border-color)', borderRadius: '8px', background: 'var(--bg-body)' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, cursor: 'pointer', marginBottom: hasVariants ? '12px' : '0' }}>
+                    <input type="checkbox" checked={hasVariants} onChange={e => setHasVariants(e.target.checked)} style={{ width: '18px', height: '18px' }} />
+                    Produk ini memiliki pilihan varian (misal: ukuran, rasa, topping)?
+                  </label>
+                  
+                  {hasVariants && (
+                    <div style={{ marginTop: '12px' }}>
+                      <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
+                        <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <input type="radio" name="variantType" checked={variantType === 'SAME_PRICE'} onChange={() => setVariantType('SAME_PRICE')} />
+                          Semua Varian Harga Sama
+                        </label>
+                        <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <input type="radio" name="variantType" checked={variantType === 'DIFFERENT_PRICE'} onChange={() => setVariantType('DIFFERENT_PRICE')} />
+                          Harga Berbeda Tiap Varian
+                        </label>
+                      </div>
+
+                      {variants.map((v, i) => (
+                        <div key={i} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                          <input className="form-input" placeholder="Nama varian (Misal: Besar)" value={v.name} onChange={e => {
+                            const next = [...variants]; next[i].name = e.target.value; setVariants(next)
+                          }} required />
+                          {variantType === 'DIFFERENT_PRICE' && (
+                            <input type="number" className="form-input" placeholder="Harga (Rp)" value={v.price} onChange={e => {
+                              const next = [...variants]; next[i].price = e.target.value; setVariants(next)
+                            }} required />
+                          )}
+                          <button type="button" onClick={() => setVariants(variants.filter((_, idx) => idx !== i))} className="btn btn-outline" style={{ color: 'red', borderColor: 'red', width: 'auto' }}>&times;</button>
+                        </div>
+                      ))}
+                      <button type="button" onClick={() => setVariants([...variants, {name: '', price: ''}])} className="btn btn-outline" style={{ width: 'auto', marginTop: '8px' }}>+ Tambah Varian</button>
+                    </div>
+                  )}
                 </div>
                 <div className="form-group">
                   <label className="form-label">URL Gambar (Opsional)</label>
@@ -219,7 +315,10 @@ export default function AdminDashboard({ products, categories, settings }: { pro
                   )}
                   <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '6px' }}>Tempel link gambar atau gunakan fitur pencarian otomatis.</small>
                 </div>
-                <button type="submit" className="btn">✚ Simpan Menu</button>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button type="submit" className="btn" style={{ flex: 1 }}>{editingProductId ? '💾 Simpan Perubahan' : '✚ Simpan Menu'}</button>
+                  {editingProductId && <button type="button" onClick={resetForm} className="btn btn-outline" style={{ flex: 1 }}>Batal Edit</button>}
+                </div>
               </form>
             </div>
 
@@ -242,13 +341,20 @@ export default function AdminDashboard({ products, categories, settings }: { pro
                         <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '14px' }}>
                           {p.categories?.map(c => c.name).join(', ') || 'Tanpa Kategori'}
                         </div>
-                        <div className="product-card-action">
+                        <div className="product-card-action" style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            onClick={() => handleEditClick(p)}
+                            className="btn btn-outline"
+                            style={{ flex: 1 }}
+                          >
+                            Edit
+                          </button>
                           <button
                             onClick={() => setItemToDelete({ type: 'product', id: p.id, name: p.name })}
                             className="btn btn-outline"
-                            style={{ color: 'red', borderColor: 'red', width: '100%' }}
+                            style={{ flex: 1, color: 'red', borderColor: 'red' }}
                           >
-                            Hapus Menu
+                            Hapus
                           </button>
                         </div>
                       </div>
