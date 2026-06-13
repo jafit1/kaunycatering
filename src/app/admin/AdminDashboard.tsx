@@ -24,11 +24,36 @@ export default function AdminDashboard({ products, categories, settings }: { pro
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
+  const [newMenuName, setNewMenuName] = useState('')
+  const [newMenuImageUrl, setNewMenuImageUrl] = useState('')
+  const [searchImagesResult, setSearchImagesResult] = useState<string[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+
+  const handleSearchImages = async () => {
+    if (!newMenuName) {
+      alert('Isi nama menu terlebih dahulu untuk mencari gambar.')
+      return
+    }
+    setIsSearching(true)
+    setSearchImagesResult([])
+    try {
+      const res = await fetch('/api/search-image?q=' + encodeURIComponent(newMenuName + ' makanan'))
+      const data = await res.json()
+      if (data.images) setSearchImagesResult(data.images)
+    } catch (e) {
+      alert('Gagal mencari gambar.')
+    }
+    setIsSearching(false)
+  }
+
   const handleAddProduct = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
     await addProduct(formData)
     e.currentTarget.reset()
+    setNewMenuName('')
+    setNewMenuImageUrl('')
+    setSearchImagesResult([])
     alert('Menu berhasil ditambahkan!')
   }
 
@@ -111,7 +136,7 @@ export default function AdminDashboard({ products, categories, settings }: { pro
               <form onSubmit={handleAddProduct}>
                 <div className="form-group">
                   <label className="form-label">Nama Menu</label>
-                  <input name="name" className="form-input" required placeholder="Contoh: Nasi Goreng Spesial" />
+                  <input name="name" value={newMenuName} onChange={e => setNewMenuName(e.target.value)} className="form-input" required placeholder="Contoh: Nasi Goreng Spesial" />
                 </div>
                 <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
                   <div className="form-group" style={{ flex: 1, minWidth: '140px' }}>
@@ -127,8 +152,33 @@ export default function AdminDashboard({ products, categories, settings }: { pro
                 </div>
                 <div className="form-group">
                   <label className="form-label">URL Gambar (Opsional)</label>
-                  <input name="imageUrl" className="form-input" placeholder="https://..." />
-                  <small style={{ color: 'var(--text-secondary)' }}>Tempel link gambar dari Google Drive, Imgur, atau hosting gambar lainnya.</small>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input name="imageUrl" value={newMenuImageUrl} onChange={e => setNewMenuImageUrl(e.target.value)} className="form-input" placeholder="https://..." style={{ flex: 1 }} />
+                    <button type="button" onClick={handleSearchImages} disabled={isSearching} className="btn" style={{ width: 'auto', flexShrink: 0 }}>
+                      {isSearching ? '⏳ Mencari...' : '🔍 Cari Gambar'}
+                    </button>
+                  </div>
+                  {searchImagesResult.length > 0 && (
+                    <div style={{ marginTop: '12px', padding: '12px', background: 'var(--bg-body)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '8px' }}>Pilih Gambar:</div>
+                      <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+                        {searchImagesResult.map((img, i) => (
+                          <img 
+                            key={i} 
+                            src={img} 
+                            onClick={() => setNewMenuImageUrl(img)}
+                            style={{ 
+                              width: '80px', height: '80px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer',
+                              border: newMenuImageUrl === img ? '3px solid var(--primary-color)' : '1px solid var(--border-color)',
+                              opacity: newMenuImageUrl === img ? 1 : 0.6,
+                              transition: 'all 0.2s'
+                            }} 
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '6px' }}>Tempel link gambar atau gunakan fitur pencarian otomatis.</small>
                 </div>
                 <button type="submit" className="btn">✚ Simpan Menu</button>
               </form>
