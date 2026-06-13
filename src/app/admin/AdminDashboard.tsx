@@ -141,7 +141,7 @@ export default function AdminDashboard({ products, categories, settings }: { pro
                   Belum ada menu. Tambahkan menu pertama di atas.
                 </div>
               ) : (
-                <div className="product-grid">
+                <div className="product-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))' }}>
                   {products.map(p => (
                     <div key={p.id} className="product-card">
                       <div className="product-image-container">
