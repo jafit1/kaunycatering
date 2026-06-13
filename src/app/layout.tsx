@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import prisma from "@/lib/prisma";
 import Header from "./Header";
 
-const plusJakartaSans = Plus_Jakarta_Sans({
+const inter = Inter({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700", "800"],
   display: "swap",
@@ -27,7 +27,7 @@ export default async function RootLayout({
 
   return (
     <html lang="id">
-      <body className={plusJakartaSans.className}>
+      <body className={inter.className}>
         <Header storeName={storeName} logoUrl={logoUrl} />
         <main className="main-content">
           {children}

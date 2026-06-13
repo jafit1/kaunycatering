@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
+import { Check, X, Package, ShoppingCart, Info, ChevronRight, MessageSquare } from "lucide-react"
 
 type Variant = { id: string, name: string, price: number }
 type Product = {
@@ -75,36 +76,31 @@ function QuantitySelector({
   }
 
   return (
-    <div className="qty-selector">
+    <div className="flex items-center border border-hairline rounded-sm overflow-hidden bg-white w-full h-[42px] shadow-sm">
       <button 
         type="button" 
-        className="qty-btn" 
+        className="w-10 h-full flex items-center justify-center text-ink hover:bg-surface-1 transition-colors font-bold text-lg" 
         onClick={decrement}
         aria-label="Decrease quantity"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="5" y1="12" x2="19" y2="12"></line>
-        </svg>
+        <span>-</span>
       </button>
       <input 
         type="text" 
         inputMode="numeric" 
         pattern="[0-9]*" 
-        className="qty-input" 
+        className="flex-1 w-0 h-full text-center border-x border-hairline font-semibold text-ink text-sm outline-none bg-transparent" 
         value={displayValue} 
         onChange={handleInputChange}
         onBlur={handleBlur}
       />
       <button 
         type="button" 
-        className="qty-btn" 
+        className="w-10 h-full flex items-center justify-center text-ink hover:bg-surface-1 transition-colors font-bold text-lg" 
         onClick={() => onChange(value + 1)}
         aria-label="Increase quantity"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19"></line>
-          <line x1="5" y1="12" x2="19" y2="12"></line>
-        </svg>
+        <span>+</span>
       </button>
     </div>
   )
@@ -363,67 +359,59 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
         </div>
       </div>
 
-      <div className="catalog-layout">
-        
-        {/* Left Sidebar / Top scroll bar on mobile */}
-        <aside className="sidebar">
-          <div className="sidebar-title">Kategori Menu</div>
-          <ul className="sidebar-menu">
-            <li 
-              className={`sidebar-item ${!isBuildingBox && activeCategory === "Semua" ? 'active' : ''}`}
-              onClick={() => { setIsBuildingBox(false); setActiveCategory("Semua") }}
-            >
-              Semua Menu
-            </li>
-            
-            {/* Special Feature Tab */}
-            <li 
-              className={`sidebar-item builder-pill ${isBuildingBox ? 'active' : ''}`}
-              onClick={() => { setIsBuildingBox(true) }}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', verticalAlign: 'middle' }}>
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-              Buat Paket Snack
-            </li>
-
-            <div className="sidebar-divider"></div>
-            
-            {categories.filter(c => c !== "Semua").map(cat => (
-              <li 
-                key={cat}
-                className={`sidebar-item ${!isBuildingBox && activeCategory === cat ? 'active' : ''}`}
-                onClick={() => { setIsBuildingBox(false); setActiveCategory(cat) }}
-              >
-                {cat}
-              </li>
-            ))}
-          </ul>
-        </aside>
-
-        {/* Right Content */}
-        <div className="content-area">
+      <div className="max-w-6xl mx-auto px-4 py-12">
+        {/* Horizontal Category Scroll (AWS Service Tags) */}
+        <div className="flex gap-2 overflow-x-auto pb-4 mb-8 no-scrollbar items-center">
+          <button 
+            className={`px-4 py-2 rounded-sm text-xs font-semibold whitespace-nowrap transition-colors ${!isBuildingBox && activeCategory === "Semua" ? 'bg-ink text-white' : 'bg-surface-1 text-ink-body hover:bg-gray-200'}`}
+            onClick={() => { setIsBuildingBox(false); setActiveCategory("Semua") }}
+          >
+            Semua Menu
+          </button>
           
-          {isBuildingBox && (
-            <div className="builder-summary-section">
-              <div className="builder-breadcrumbs">
-                <span className="breadcrumb-active">Pilih Isi Snack Box</span> &gt; Pengemasan &amp; Jumlah
-              </div>
-              
-              <h2 className="builder-heading">Snack Box Builder</h2>
-              
-              {/* Box Summary Table */}
-              {Object.keys(draftBox).length > 0 ? (
-                <div className="draft-summary-container">
-                  <table className="box-summary-table">
+          {categories.filter(c => c !== "Semua").map(cat => (
+            <button 
+              key={cat}
+              className={`px-4 py-2 rounded-sm text-xs font-semibold whitespace-nowrap transition-colors ${!isBuildingBox && activeCategory === cat ? 'bg-ink text-white' : 'bg-surface-1 text-ink-body hover:bg-gray-200'}`}
+              onClick={() => { setIsBuildingBox(false); setActiveCategory(cat) }}
+            >
+              {cat}
+            </button>
+          ))}
+
+          <div className="w-[1px] h-6 bg-hairline mx-2 flex-shrink-0"></div>
+
+          <button 
+            className={`px-4 py-2 rounded-full border border-hairline text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-2 ${isBuildingBox ? 'bg-primary text-white border-primary' : 'bg-white text-primary hover:bg-surface-1'}`}
+            onClick={() => { setIsBuildingBox(true) }}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            Buat Paket Snack
+          </button>
+        </div>
+
+        {/* Builder Summary Section */}
+        {isBuildingBox && (
+          <div className="bg-surface-1 border border-hairline rounded-aws-card p-6 mb-8 shadow-sm">
+            <div className="text-xs font-semibold text-ink-faded mb-4 uppercase tracking-wider">
+              <span className="text-primary">Pilih Isi Snack Box</span> &gt; Pengemasan &amp; Jumlah
+            </div>
+            
+            <h2 className="text-2xl font-bold text-ink mb-6">Snack Box Builder</h2>
+            
+            {Object.keys(draftBox).length > 0 ? (
+              <div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse mb-6">
                     <thead>
-                      <tr>
-                        <th>Gambar</th>
-                        <th>Menu Makanan</th>
-                        <th>Ukuran</th>
-                        <th>Harga</th>
-                        <th style={{ textAlign: 'center' }}>Hapus</th>
+                      <tr className="border-b border-hairline">
+                        <th className="py-3 px-4 text-xs font-semibold text-ink-faded uppercase tracking-wider">Gambar</th>
+                        <th className="py-3 px-4 text-xs font-semibold text-ink-faded uppercase tracking-wider">Menu</th>
+                        <th className="py-3 px-4 text-xs font-semibold text-ink-faded uppercase tracking-wider">Harga</th>
+                        <th className="py-3 px-4 text-xs font-semibold text-ink-faded uppercase tracking-wider text-center">Aksi</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -431,13 +419,14 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
                         const info = getCartItemInfo(id)
                         if (!info || !info.product) return null
                         return (
-                          <tr key={id}>
-                            <td>
-                              <img src={info.product.imageUrl || 'https://via.placeholder.com/60'} alt={info.name} className="table-image" />
+                          <tr key={id} className="border-b border-hairline border-opacity-50">
+                            <td className="py-3 px-4">
+                              <img src={info.product.imageUrl || 'https://via.placeholder.com/60'} alt={info.name} className="w-12 h-12 rounded-sm object-cover" />
                             </td>
-                            <td>
-                              <div className="table-item-name">{info.name}</div>
-                              <div style={{ marginTop: '6px' }}>
+                            <td className="py-3 px-4">
+                              <div className="font-semibold text-ink text-sm">{info.name}</div>
+                              <div className="text-xs text-ink-faded mt-1">{info.variant ? info.variant.name : 'Standar'}</div>
+                              <div className="mt-2 w-32">
                                 <QuantitySelector 
                                   value={qty} 
                                   onChange={(val) => updateDraftBoxQty(id, val)}
@@ -445,83 +434,84 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
                                 />
                               </div>
                             </td>
-                            <td>{info.variant ? info.variant.name : 'Standar'}</td>
-                            <td>{formatPrice(info.price * qty)}</td>
-                            <td style={{ textAlign: 'center' }}>
-                              <button className="remove-btn" onClick={() => removeFromDraftBox(id)} aria-label="Remove item">
-                                &times;
+                            <td className="py-3 px-4 font-semibold text-ink text-sm">{formatPrice(info.price * qty)}</td>
+                            <td className="py-3 px-4 text-center">
+                              <button className="text-ink-faded hover:text-primary transition-colors" onClick={() => removeFromDraftBox(id)} aria-label="Remove item">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                               </button>
                             </td>
                           </tr>
                         )
                       })}
-                      <tr className="table-total-row">
-                        <td colSpan={3}>Sub Total (1 Box) :</td>
-                        <td style={{ color: 'var(--primary-color)' }}>{formatPrice(draftBoxTotalPrice)}</td>
+                      <tr>
+                        <td colSpan={2} className="py-4 px-4 font-bold text-right text-ink">Sub Total (1 Box):</td>
+                        <td className="py-4 px-4 font-bold text-primary">{formatPrice(draftBoxTotalPrice)}</td>
                         <td></td>
                       </tr>
                     </tbody>
                   </table>
-                  <div style={{ textAlign: 'right', marginBottom: '24px' }}>
-                    <button className="btn btn-done-pack" style={{ width: 'auto' }} onClick={saveDraftBox}>
-                      Done, Lets Pack It
-                    </button>
-                  </div>
                 </div>
-              ) : (
-                <div className="builder-empty-notice">
-                  <p>Silakan pilih dan tambahkan produk-produk lezat di bawah ini ke dalam snack box Anda.</p>
+                <div className="text-right">
+                  <button className="px-6 py-3 bg-primary text-white rounded-aws-pill font-bold text-sm shadow-aws-elevation-1 hover:bg-primary-hover transition-colors" onClick={saveDraftBox}>
+                    Selesai, Lanjut Kemas
+                  </button>
                 </div>
-              )}
-            </div>
-          )}
-
-          <div className="product-grid">
-            {initialProducts.filter(p => isBuildingBox ? true : (activeCategory === "Semua" || p.categories?.some(c => c.name === activeCategory))).map(p => {
-              const inCartQty = normalCart[p.id] || 0
-              return (
-                <div key={p.id} className="product-card">
-                  <div className="product-image-container">
-                    <img src={p.imageUrl || 'https://via.placeholder.com/300?text=Product'} alt={p.name} className="product-image" loading="lazy" />
-                  </div>
-                  <div className="product-info">
-                    <div className="product-name">{p.name}</div>
-                    <div className="product-price">{formatPrice(p.price)}</div>
-                    
-                    <div className="product-card-action">
-                      {isBuildingBox ? (
-                        <button className="btn btn-add-box" onClick={() => openProductModal(p, 'snack_box')}>
-                          Masukkan ke Snack Box
-                        </button>
-                      ) : (
-                        inCartQty > 0 ? (
-                          <QuantitySelector 
-                            value={inCartQty} 
-                            onChange={(qty) => updateNormalCartQty(p.id, qty)}
-                            onRemove={() => updateNormalCartQty(p.id, 0)}
-                          />
-                        ) : (
-                          <button className="btn btn-add-cart" onClick={() => {
-                            if (p.hasVariants) {
-                              openProductModal(p, 'cart')
-                            } else {
-                              addToNormalCart(p)
-                            }
-                          }}>
-                            Tambah ke Keranjang
-                          </button>
-                        )
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
+              </div>
+            ) : (
+              <div className="text-center py-12 bg-white rounded-aws-card border border-hairline border-dashed">
+                <p className="text-ink-faded text-sm">Silakan pilih dan tambahkan produk-produk lezat di bawah ini ke dalam snack box Anda.</p>
+              </div>
+            )}
           </div>
+        )}
+
+        {/* AWS Thumbnail Cards Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {initialProducts.filter(p => isBuildingBox ? true : (activeCategory === "Semua" || p.categories?.some(c => c.name === activeCategory))).map(p => {
+            const inCartQty = normalCart[p.id] || 0
+            return (
+              <div key={p.id} className="relative bg-white border border-hairline rounded-aws-card overflow-hidden flex flex-col group transition-all duration-300 hover:shadow-aws-elevation-1 hover:border-primary">
+                <div className="absolute inset-0 bg-gradient-to-t from-surface-1 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-0"></div>
+                <div className="relative w-full h-48 overflow-hidden bg-white z-10">
+                  <img src={p.imageUrl || 'https://via.placeholder.com/300?text=Product'} alt={p.name} className="w-full h-full object-cover" loading="lazy" />
+                </div>
+                <div className="p-5 flex flex-col flex-1 z-10">
+                  <h3 className="font-bold text-ink text-sm md:text-base mb-1">{p.name}</h3>
+                  <div className="font-semibold text-primary text-sm mb-4">{formatPrice(p.price)}</div>
+                  
+                  <div className="mt-auto">
+                    {isBuildingBox ? (
+                      <button className="w-full py-2.5 px-4 bg-white border border-hairline text-ink font-semibold rounded-sm text-xs md:text-sm shadow-sm hover:bg-surface-1 transition-colors flex items-center justify-center gap-2" onClick={() => openProductModal(p, 'snack_box')}>
+                        <Package size={16} /> Tambah ke Box
+                      </button>
+                    ) : (
+                      inCartQty > 0 ? (
+                        <QuantitySelector 
+                          value={inCartQty} 
+                          onChange={(qty) => updateNormalCartQty(p.id, qty)}
+                          onRemove={() => updateNormalCartQty(p.id, 0)}
+                        />
+                      ) : (
+                        <button className="w-full py-2.5 px-4 bg-white border border-hairline text-ink font-semibold rounded-sm text-xs md:text-sm shadow-sm hover:bg-surface-1 transition-colors flex items-center justify-center gap-2" onClick={() => {
+                          if (p.hasVariants) {
+                            openProductModal(p, 'cart')
+                          } else {
+                            addToNormalCart(p)
+                          }
+                        }}>
+                          <ShoppingCart size={16} /> Tambah Keranjang
+                        </button>
+                      )
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
         </div>
       </div>
 
-      {/* Product Details Modal (Image 2 - HTML Replacement) */}
+      {/* Product Details Modal (Image 2 - HTML Replacement) */}'
       {selectedProduct && (
         <div className="modal-overlay" onClick={() => setSelectedProduct(null)}>
           <div className="modal-content product-modal" onClick={e => e.stopPropagation()}>
@@ -615,12 +605,8 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
               <div className="cart-value-price">{formatPrice(grandTotalPrice)}</div>
             </div>
           </div>
-          <button className="btn btn-checkout-trigger" onClick={() => setShowCheckout(true)}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
-              <line x1="3" y1="6" x2="21" y2="6"></line>
-              <path d="M16 10a4 4 0 0 1-8 0"></path>
-            </svg>
+          <button className="flex items-center gap-2 px-6 py-3 bg-white text-ink border border-hairline rounded-sm font-bold shadow-sm hover:bg-surface-1 transition-colors" onClick={() => setShowCheckout(true)}>
+            <ShoppingCart size={18} strokeWidth={2.5} />
             Checkout Sekarang
           </button>
         </div>
@@ -628,14 +614,14 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
 
       {/* Grand Checkout Modal */}
       {showCheckout && (
-        <div className="checkout-modal" onClick={() => setShowCheckout(false)}>
-          <div className="checkout-modal-content" onClick={e => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setShowCheckout(false)}>&times;</button>
-            <h2 className="modal-heading" style={{ color: 'var(--primary-color)', borderBottom: '1px solid #eee', paddingBottom: '12px' }}>Finalisasi Pesanan</h2>
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowCheckout(false)}>
+          <div className="bg-white rounded-aws-card w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-hairline shadow-aws-elevation-1 p-6 relative" onClick={e => e.stopPropagation()}>
+            <button className="absolute top-6 right-6 text-ink-faded hover:text-primary transition-colors" onClick={() => setShowCheckout(false)}><X size={24} /></button>
+            <h2 className="text-xl font-bold text-ink border-b border-hairline pb-4 mb-6">Finalisasi Pesanan</h2>
             
             {/* Interactive Cart Summary inside Checkout Screen */}
             <div className="checkout-summary-container">
-              <h3 className="summary-heading">Ringkasan Pesanan Anda</h3>
+              <h3 className="text-sm font-semibold text-ink-faded uppercase tracking-wider mb-4">Ringkasan Pesanan Anda</h3>
               
               {Object.keys(normalCart).length === 0 && snackBoxes.length === 0 ? (
                 <p style={{ color: 'var(--text-secondary)', padding: '16px 0' }}>Keranjang belanja kosong.</p>
@@ -643,16 +629,16 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
                 <>
                   {/* Satuan Items list */}
                   {Object.keys(normalCart).length > 0 && (
-                    <div className="summary-section">
-                      <div className="section-title">Produk Satuan</div>
+                    <div className="mb-6">
+                      <div className="font-bold text-ink mb-3">Produk Satuan</div>
                       {Object.entries(normalCart).map(([id, qty]) => {
                         const info = getCartItemInfo(id)
                         if (!info || !info.product) return null
                         return (
                           <div key={id} className="summary-item-row">
                             <div className="summary-item-info">
-                              <span className="summary-item-name">{info.name}</span>
-                              <span className="summary-item-price">{formatPrice(info.price)}</span>
+                              <span className="font-semibold text-sm text-ink block">{info.name}</span>
+                              <span className="text-xs text-primary font-bold">{formatPrice(info.price)}</span>
                             </div>
                             <div className="summary-item-qty">
                               <QuantitySelector 
@@ -669,8 +655,8 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
 
                   {/* Snack Boxes packages list */}
                   {snackBoxes.length > 0 && (
-                    <div className="summary-section">
-                      <div className="section-title">Paket Snack Box</div>
+                    <div className="mb-6">
+                      <div className="font-bold text-ink mb-3">Paket Snack Box</div>
                       {snackBoxes.map((box, index) => {
                         const boxPrice = Object.entries(box.items).reduce((sum, [id, qty]) => {
                           const p = initialProducts.find(p => p.id === id)
@@ -678,18 +664,12 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
                         }, 0)
                         return (
                           <div key={index} className="summary-package-card">
-                            <div className="package-card-header">
+                            <div className="flex items-start justify-between mb-3 border-b border-hairline pb-2">
                               <div>
-                                <span className="package-title">📦 Paket {index + 1}</span>
-                                <span className="package-packaging">({box.pkg})</span>
+                                <span className="font-bold text-ink block">📦 Paket {index + 1}</span>
+                                <span className="text-xs text-ink-faded">({box.pkg})</span>
                               </div>
-                              <button 
-                                className="package-delete"
-                                onClick={() => setSnackBoxes(prev => prev.filter((_, i) => i !== index))}
-                                aria-label="Hapus paket"
-                              >
-                                &times;
-                              </button>
+                              <button className="text-ink-faded hover:text-red-500 transition-colors" onClick={() => setSnackBoxes(prev => prev.filter((_, i) => i !== index))} aria-label="Hapus paket"><X size={18} /></button>
                             </div>
                             <div className="package-items-list">
                               {Object.entries(box.items).map(([id, qty]) => {
@@ -701,8 +681,8 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
                                 ) : null
                               })}
                             </div>
-                            <div className="package-card-footer">
-                              <span className="package-subtotal">Subtotal: {formatPrice(boxPrice * box.qty)}</span>
+                            <div className="flex items-center justify-between mt-4 pt-3 border-t border-hairline">
+                              <span className="font-bold text-primary text-sm">Subtotal: {formatPrice(boxPrice * box.qty)}</span>
                               <QuantitySelector 
                                 value={box.qty} 
                                 onChange={(val) => setSnackBoxes(prev => prev.map((b, i) => i === index ? { ...b, qty: val } : b))}
@@ -714,7 +694,7 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
                     </div>
                   )}
 
-                  <div className="grand-total-row">
+                  <div className="flex justify-between items-center py-4 text-lg font-bold text-ink border-t border-hairline mt-6">
                     <span>Total Keseluruhan</span>
                     <span className="total-val">{formatPrice(grandTotalPrice)}</span>
                   </div>
@@ -724,7 +704,7 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
 
             {/* Delivery Form */}
             <div className="delivery-form" style={{ marginTop: '24px' }}>
-              <h3 className="summary-heading">Data Pengiriman</h3>
+              <h3 className="text-sm font-semibold text-ink-faded uppercase tracking-wider mb-4">Data Pengiriman</h3>
               
               <div className="form-group">
                 <label className="form-label">Nama Pemesan</label>
@@ -740,11 +720,11 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
               </div>
             </div>
             
-            <div className="modal-action-buttons" style={{ marginTop: '32px' }}>
+            <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-hairline">
               <button className="btn btn-outline" onClick={() => setShowCheckout(false)}>Kembali</button>
-              <button className="btn btn-send-wa" onClick={handleCheckout}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px', verticalAlign: 'middle' }}>
-                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+              <button className="px-6 py-2.5 bg-[#25D366] text-white rounded-aws-pill font-semibold shadow-sm hover:bg-[#1DA851] transition-colors flex items-center" onClick={handleCheckout}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" className="mr-2 inline-block">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
                 </svg>
                 Kirim Pesanan (WhatsApp)
               </button>
