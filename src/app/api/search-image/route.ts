@@ -9,8 +9,8 @@ export async function GET(request: Request) {
   }
 
   // Mengambil API Key dari akun Google Anda (diatur di Vercel Environment Variables)
-  const apiKey = process.env.GOOGLE_API_KEY;
-  const searchEngineId = process.env.GOOGLE_CX;
+  const apiKey = process.env.GOOGLE_API_KEY?.trim();
+  const searchEngineId = process.env.GOOGLE_CX?.trim();
 
   if (!apiKey || !searchEngineId) {
     return NextResponse.json({ 
