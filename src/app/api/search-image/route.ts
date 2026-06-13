@@ -23,12 +23,15 @@ export async function GET(request: Request) {
     // Menggunakan Google Custom Search API yang 100% akurat (Pencarian Gambar Google Asli)
     const res = await fetch(`https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${searchEngineId}&q=${encodeURIComponent(q)}&searchType=image&num=10`);
     
+    const data = await res.json();
     if (!res.ok) {
-      const errorData = await res.json();
-      throw new Error(errorData.error?.message || 'Gagal mengambil gambar dari Google API');
+      console.error("Google Custom Search Error:", data);
+      const keyPrefix = apiKey ? apiKey.substring(0, 4) + "..." : "kosong";
+      return NextResponse.json({ 
+        error: `${data.error?.message || 'Gagal mengambil gambar dari Google'} (Key terpakai: ${keyPrefix})`
+      }, { status: res.status });
     }
 
-    const data = await res.json();
     const images: string[] = [];
     
     if (data.items && data.items.length > 0) {
