@@ -1818,3 +1818,79 @@ body {
   .admin-sidebar { width: 100%; height: auto; position: static; border-right: none; border-bottom: 1px solid var(--border-color); }
   .admin-content { padding: 16px; }
 }
+
+/* ANIMASI BARU (HOVER INVERT & CART) */
+
+@keyframes cartBounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-10px) scale(1.05); }
+}
+
+.cart-bounce {
+  animation: cartBounce 0.3s ease-in-out;
+}
+
+/* Hover Invert Animations */
+.promo-card, .moment-card, .store-info-card, .social-card {
+  transition: all 0.4s ease;
+}
+
+.promo-card:hover {
+  background-color: var(--primary-color) !important;
+  color: #fff !important;
+  transform: translateY(-8px);
+  box-shadow: 0 15px 30px rgba(230, 81, 0, 0.3);
+}
+
+.promo-card:hover h3, .promo-card:hover p {
+  color: #fff !important;
+}
+
+.promo-card:hover .promo-btn {
+  background-color: #fff !important;
+  color: var(--primary-color) !important;
+}
+
+.moment-card:hover {
+  background-color: var(--primary-color) !important;
+  color: #fff !important;
+  transform: translateY(-5px);
+}
+
+.moment-card:hover h3, .moment-card:hover p, .moment-card:hover .moment-icon {
+  color: #fff !important;
+}
+
+.store-info-card:hover {
+  background-color: var(--primary-color) !important;
+  color: #fff !important;
+  transform: scale(1.02);
+}
+
+.store-info-card:hover .store-info-label,
+.store-info-card:hover .store-info-value,
+.store-info-card:hover .store-wa-link {
+  color: #fff !important;
+}
+
+.store-info-card:hover .store-info-icon {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+  color: #fff !important;
+}
+
+.social-card:hover {
+  background-color: var(--primary-color) !important;
+  color: #fff !important;
+  border-color: var(--primary-color);
+}
+
+.social-card:hover .social-name,
+.social-card:hover .social-handle,
+.social-card:hover svg {
+  color: #fff !important;
+}
+
+.social-card:hover .social-icon {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+  color: #fff !important;
+}

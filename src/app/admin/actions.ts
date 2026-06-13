@@ -7,10 +7,17 @@ export async function addProduct(formData: FormData) {
   const name = formData.get('name') as string
   const price = parseInt(formData.get('price') as string) || 0
   const imageUrl = formData.get('imageUrl') as string || ''
-  const categoryId = formData.get('categoryId') as string
+  const categoryIds = formData.getAll('categories') as string[]
 
   await prisma.product.create({
-    data: { name, price, imageUrl, categoryId }
+    data: { 
+      name, 
+      price, 
+      imageUrl,
+      categories: {
+        connect: categoryIds.map(id => ({ id }))
+      }
+    }
   })
 
   revalidatePath('/admin')

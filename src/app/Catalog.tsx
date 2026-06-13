@@ -7,8 +7,7 @@ type Product = {
   name: string
   price: number
   imageUrl: string | null
-  categoryId: string
-  category?: { name: string }
+  categories?: { name: string }[]
 }
 
 type SnackBox = {
@@ -110,6 +109,7 @@ function QuantitySelector({
 
 export default function Catalog({ initialProducts, waNumber }: { initialProducts: Product[], waNumber: string }) {
   const [activeCategory, setActiveCategory] = useState<string>("Semua")
+  const [cartAnimating, setCartAnimating] = useState(false)
   
   // Shopping Cart States
   const [normalCart, setNormalCart] = useState<{ [id: string]: number }>({})
@@ -156,7 +156,7 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
   }, [toastTimeoutId])
 
   const categories = useMemo(() => {
-    const cats = new Set(initialProducts.map(p => p.category?.name).filter(Boolean))
+    const cats = new Set(initialProducts.flatMap(p => p.categories?.map(c => c.name) || []))
     return ["Semua", ...Array.from(cats)] as string[]
   }, [initialProducts])
 
@@ -168,6 +168,8 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
   const addToNormalCart = (product: Product) => {
     setNormalCart(prev => ({ ...prev, [product.id]: 1 }))
     showToast(`${product.name} ditambahkan ke keranjang!`, 'success')
+    setCartAnimating(true)
+    setTimeout(() => setCartAnimating(false), 300)
   }
 
   const updateNormalCartQty = (productId: string, qty: number) => {
@@ -245,6 +247,8 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
     setIsBuildingBox(false)
     setActiveCategory("Semua")
     showToast("Paket Snack Box berhasil disimpan ke keranjang!", "success")
+    setCartAnimating(true)
+    setTimeout(() => setCartAnimating(false), 300)
   }
 
   // --- Grand Totals ---
@@ -442,7 +446,7 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
           )}
 
           <div className="product-grid">
-            {initialProducts.filter(p => isBuildingBox ? true : (activeCategory === "Semua" || p.category?.name === activeCategory)).map(p => {
+            {initialProducts.filter(p => isBuildingBox ? true : (activeCategory === "Semua" || p.categories?.some(c => c.name === activeCategory))).map(p => {
               const inCartQty = normalCart[p.id] || 0
               return (
                 <div key={p.id} className="product-card">
@@ -539,7 +543,7 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
       )}
 
       {/* Floating Cart (Bottom) */}
-      <div className={`floating-cart ${grandTotalItems > 0 ? 'visible' : ''}`}>
+      <div className={`floating-cart ${grandTotalItems > 0 ? 'visible' : ''} ${cartAnimating ? 'cart-bounce' : ''}`}>
         <div className="floating-cart-inner">
           <div className="cart-summary-text">
             <div>

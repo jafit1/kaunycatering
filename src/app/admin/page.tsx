@@ -26,7 +26,7 @@ export default async function AdminPage() {
   }
 
   const products = await prisma.product.findMany({ 
-    include: { category: true },
+    include: { categories: true },
     orderBy: { name: 'asc' } 
   })
   const categories = await prisma.category.findMany({ orderBy: { order: 'asc' } })

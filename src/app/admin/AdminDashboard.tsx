@@ -4,7 +4,7 @@ import { useState } from "react"
 import { addProduct, deleteProduct, updateSetting, addCategory, deleteCategory } from "./actions"
 
 type Category = { id: string, name: string }
-type Product = { id: string, name: string, price: number, imageUrl: string | null, categoryId: string, category?: Category }
+type Product = { id: string, name: string, price: number, imageUrl: string | null, categories?: Category[] }
 type Setting = { id: string, key: string, value: string }
 
 export default function AdminDashboard({ products, categories, settings }: { products: Product[], categories: Category[], settings: Setting[] }) {
@@ -23,6 +23,17 @@ export default function AdminDashboard({ products, categories, settings }: { pro
   const [adminPassword, setAdminPassword] = useState(getSetting('admin_password'))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+
+  // Custom Toast State
+  const [toast, setToast] = useState<{ message: string; visible: boolean; type: 'success' | 'error' }>({ message: '', visible: false, type: 'success' })
+  const [toastTimeoutId, setToastTimeoutId] = useState<NodeJS.Timeout | null>(null)
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    if (toastTimeoutId) clearTimeout(toastTimeoutId)
+    setToast({ message, visible: true, type })
+    const id = setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 3000)
+    setToastTimeoutId(id)
+  }
 
   const [newMenuName, setNewMenuName] = useState('')
   const [newMenuImageUrl, setNewMenuImageUrl] = useState('')
@@ -55,12 +66,17 @@ export default function AdminDashboard({ products, categories, settings }: { pro
   const handleAddProduct = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
+    const categoryIds = formData.getAll('categories')
+    if (categoryIds.length === 0) {
+      showToast('Pilih minimal satu kategori!', 'error')
+      return
+    }
     await addProduct(formData)
     e.currentTarget.reset()
     setNewMenuName('')
     setNewMenuImageUrl('')
     setSearchImagesResult([])
-    alert('Menu berhasil ditambahkan!')
+    showToast('Menu berhasil ditambahkan!', 'success')
   }
 
   const handleAddCategory = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -68,7 +84,7 @@ export default function AdminDashboard({ products, categories, settings }: { pro
     const formData = new FormData(e.currentTarget)
     await addCategory(formData)
     e.currentTarget.reset()
-    alert('Kategori berhasil ditambahkan!')
+    showToast('Kategori berhasil ditambahkan!', 'success')
   }
 
   const handleSaveSettings = async () => {
@@ -93,6 +109,18 @@ export default function AdminDashboard({ products, categories, settings }: { pro
 
   return (
     <div className="admin-layout">
+      {/* Custom Toast Notification */}
+      <div className={`toast-container ${toast.visible ? 'visible' : ''} ${toast.type}`}>
+        <div className="toast-content">
+          {toast.type === 'success' ? (
+            <svg className="toast-icon success" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          ) : (
+            <svg className="toast-icon error" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+          )}
+          <span className="toast-text">{toast.message}</span>
+        </div>
+      </div>
+
       {/* Sidebar */}
       <div className="admin-sidebar">
         <div className="admin-sidebar-header">
@@ -145,11 +173,16 @@ export default function AdminDashboard({ products, categories, settings }: { pro
                   <input name="name" value={newMenuName} onChange={e => setNewMenuName(e.target.value)} className="form-input" required placeholder="Contoh: Nasi Goreng Spesial" />
                 </div>
                 <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                  <div className="form-group" style={{ flex: 1, minWidth: '140px' }}>
-                    <label className="form-label">Kategori</label>
-                    <select name="categoryId" className="form-input" required>
-                      {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
+                  <div className="form-group" style={{ flex: 1, minWidth: '240px' }}>
+                    <label className="form-label">Kategori (Bisa pilih lebih dari satu)</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', padding: '12px', border: '1px solid var(--border-color)', borderRadius: '8px', background: '#fff' }}>
+                      {categories.map(c => (
+                        <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px' }}>
+                          <input type="checkbox" name="categories" value={c.id} style={{ width: '18px', height: '18px', cursor: 'pointer' }} />
+                          {c.name}
+                        </label>
+                      ))}
+                    </div>
                   </div>
                   <div className="form-group" style={{ flex: 1, minWidth: '140px' }}>
                     <label className="form-label">Harga (Rp)</label>
@@ -206,7 +239,9 @@ export default function AdminDashboard({ products, categories, settings }: { pro
                       <div className="product-info">
                         <div className="product-name">{p.name}</div>
                         <div className="product-price">Rp {p.price.toLocaleString('id-ID')}</div>
-                        <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '14px' }}>{p.category?.name}</div>
+                        <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '14px' }}>
+                          {p.categories?.map(c => c.name).join(', ') || 'Tanpa Kategori'}
+                        </div>
                         <div className="product-card-action">
                           <button
                             onClick={() => setItemToDelete({ type: 'product', id: p.id, name: p.name })}
@@ -401,8 +436,14 @@ export default function AdminDashboard({ products, categories, settings }: { pro
               </button>
               <button 
                 onClick={async () => {
-                  if (itemToDelete.type === 'product') await deleteProduct(itemToDelete.id)
-                  if (itemToDelete.type === 'category') await deleteCategory(itemToDelete.id)
+                  if (itemToDelete.type === 'product') {
+                    await deleteProduct(itemToDelete.id)
+                    showToast('Menu berhasil dihapus', 'success')
+                  }
+                  if (itemToDelete.type === 'category') {
+                    await deleteCategory(itemToDelete.id)
+                    showToast('Kategori berhasil dihapus', 'success')
+                  }
                   setItemToDelete(null)
                 }}
                 className="btn" 
