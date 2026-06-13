@@ -26,9 +26,9 @@ export async function GET(request: Request) {
     const data = await res.json();
     if (!res.ok) {
       console.error("Google Custom Search Error:", data);
-      const keyPrefix = apiKey ? apiKey.substring(0, 4) + "..." : "kosong";
+      const keySuffix = apiKey ? apiKey.slice(-4) : "kosong";
       return NextResponse.json({ 
-        error: `${data.error?.message || 'Gagal mengambil gambar dari Google'} (Key terpakai: ${keyPrefix})`
+        error: `${data.error?.message || 'Gagal mengambil gambar dari Google'} (Akhiran Key: ...${keySuffix})`
       }, { status: res.status });
     }
 
