@@ -66,12 +66,12 @@ export default async function Home() {
       <section id="promo" className="page-section bg-section-alt">
         <div className="section-container">
           <div className="section-header">
-            <h2 className="section-title">News & Promo</h2>
+            <h2 className="section-title">Berita & Promo</h2>
             <p className="section-subtitle">Jangan lewatkan penawaran terbaik dari kami</p>
           </div>
           <div className="promo-grid">
             <div className="promo-card promo-featured">
-              <div className="promo-badge-tag">🔥 Hot Deal</div>
+              <div className="promo-badge-tag">🔥 Promo Spesial</div>
               <div className="promo-emoji">🎉</div>
               <h3>Paket Snack Box Spesial</h3>
               <p>Hemat hingga 20% untuk pemesanan Snack Box di atas 50 pax. Cocok untuk acara kantor dan seminar.</p>
@@ -79,7 +79,7 @@ export default async function Home() {
             </div>
             <div className="promo-card">
               <div className="promo-emoji">🚀</div>
-              <h3>Free Ongkir Area Kota</h3>
+              <h3>Gratis Ongkir Dalam Kota</h3>
               <p>Pesan minimal 20 pax, pengiriman gratis ke seluruh area dalam kota.</p>
             </div>
             <div className="promo-card">
@@ -95,17 +95,17 @@ export default async function Home() {
       <section id="moment" className="page-section">
         <div className="section-container">
           <div className="section-header">
-            <h2 className="section-title">Choose Your Moment</h2>
+            <h2 className="section-title">Pilihan Momen Anda</h2>
             <p className="section-subtitle">Kami siap hadir di setiap momen berharga Anda</p>
           </div>
           <div className="moment-grid">
             {[
-              { emoji: "🏢", title: "Meeting & Seminar", desc: "Paket snack box dan nasi box untuk kegiatan kantor dan rapat." },
+              { emoji: "🏢", title: "Rapat & Seminar", desc: "Paket snack box dan nasi box untuk kegiatan kantor dan rapat." },
               { emoji: "🎊", title: "Pesta & Perayaan", desc: "Sajian lengkap untuk ulang tahun, gathering, dan acara keluarga." },
               { emoji: "💒", title: "Pernikahan", desc: "Catering pernikahan dengan menu premium dan pelayanan profesional." },
               { emoji: "🎓", title: "Wisuda & Syukuran", desc: "Rayakan pencapaian dengan hidangan terbaik bersama orang tersayang." },
               { emoji: "🏥", title: "Acara Sosial", desc: "Dukungan konsumsi untuk bakti sosial, pengajian, dan kegiatan komunitas." },
-              { emoji: "🎁", title: "Hampers & Gift", desc: "Paket hampers snack premium sebagai hadiah berkesan untuk klien." },
+              { emoji: "🎁", title: "Hampers & Hadiah", desc: "Paket hampers snack premium sebagai hadiah berkesan untuk klien." },
             ].map((m) => (
               <div key={m.title} className="moment-card">
                 <div className="moment-icon">{m.emoji}</div>
@@ -116,6 +116,48 @@ export default async function Home() {
           </div>
         </div>
       </section>
+
+      {/* ── STORE ──────────────────────────────── */}
+      <section id="store" className="page-section">
+        <div className="section-container">
+          <div className="section-header">
+            <h2 className="section-title">Informasi Toko</h2>
+            <p className="section-subtitle">Kunjungi kami atau hubungi untuk konsultasi menu</p>
+          </div>
+          <div className="store-grid">
+            <div className="store-info-card">
+              <div className="store-info-icon">📍</div>
+              <div>
+                <div className="store-info-label">Lokasi</div>
+                <div className="store-info-value">{storeAddress}</div>
+              </div>
+            </div>
+            <div className="store-info-card">
+              <div className="store-info-icon">🕐</div>
+              <div>
+                <div className="store-info-label">Jam Operasional</div>
+                <div className="store-info-value">
+                  {storeHours.split('\n').map((line: string, i: number) => (
+                    <span key={i}>{line}<br /></span>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="store-info-card">
+              <div className="store-info-icon">📞</div>
+              <div>
+                <div className="store-info-label">Hubungi Kami</div>
+                <div className="store-info-value">
+                  <a href={`https://wa.me/${waNumber}`} target="_blank" rel="noopener noreferrer" className="store-wa-link">
+                    Chat via WhatsApp →
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
 
       {/* ── SOCIAL ─────────────────────────────── */}
       <section id="social" className="page-section bg-section-alt">
@@ -161,7 +203,7 @@ export default async function Home() {
       <section id="faq" className="page-section">
         <div className="section-container">
           <div className="section-header">
-            <h2 className="section-title">FAQ</h2>
+            <h2 className="section-title">Tanya Jawab</h2>
             <p className="section-subtitle">Pertanyaan yang sering ditanyakan pelanggan kami</p>
           </div>
           <div className="faq-list">
@@ -214,46 +256,7 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* ── STORE ──────────────────────────────── */}
-      <section id="store" className="page-section">
-        <div className="section-container">
-          <div className="section-header">
-            <h2 className="section-title">Informasi Toko</h2>
-            <p className="section-subtitle">Kunjungi kami atau hubungi untuk konsultasi menu</p>
-          </div>
-          <div className="store-grid">
-            <div className="store-info-card">
-              <div className="store-info-icon">📍</div>
-              <div>
-                <div className="store-info-label">Lokasi</div>
-                <div className="store-info-value">{storeAddress}</div>
-              </div>
-            </div>
-            <div className="store-info-card">
-              <div className="store-info-icon">🕐</div>
-              <div>
-                <div className="store-info-label">Jam Operasional</div>
-                <div className="store-info-value">
-                  {storeHours.split('\n').map((line: string, i: number) => (
-                    <span key={i}>{line}<br /></span>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="store-info-card">
-              <div className="store-info-icon">📞</div>
-              <div>
-                <div className="store-info-label">Hubungi Kami</div>
-                <div className="store-info-value">
-                  <a href={`https://wa.me/${waNumber}`} target="_blank" rel="noopener noreferrer" className="store-wa-link">
-                    Chat via WhatsApp →
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+
 
       {/* ── FOOTER ─────────────────────────────── */}
       <footer className="site-footer">
@@ -265,8 +268,8 @@ export default async function Home() {
           <div className="footer-links">
             <a href="#menu" className="footer-link">Menu</a>
             <a href="#promo" className="footer-link">Promo</a>
-            <a href="#faq" className="footer-link">FAQ</a>
-            <a href="#about" className="footer-link">About</a>
+            <a href="#faq" className="footer-link">Tanya Jawab</a>
+            <a href="#about" className="footer-link">Tentang Kami</a>
             <a href={`https://wa.me/${waNumber}`} target="_blank" rel="noopener noreferrer" className="footer-link">WhatsApp</a>
           </div>
           <p className="footer-copy">© {new Date().getFullYear()} {storeName}. All rights reserved.</p>

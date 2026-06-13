@@ -39,7 +39,7 @@ export default function AdminDashboard({ products, categories, settings }: { pro
     setIsSearching(true)
     setSearchImagesResult([])
     try {
-      const res = await fetch('/api/search-image?q=' + encodeURIComponent(newMenuName + ' makanan'))
+      const res = await fetch('/api/search-image?q=' + encodeURIComponent(newMenuName))
       const data = await res.json()
       if (data.images) setSearchImagesResult(data.images)
     } catch (e) {
