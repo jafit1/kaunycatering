@@ -1,14 +1,16 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
-import { Check, X, Package, ShoppingCart, Info, ChevronRight, MessageSquare } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { ArrowRight, Check, ChevronDown, Minus, Plus, X } from "lucide-react"
+import { Drawer, Dropdown, EVT, Modal, Reveal, emit, scrollToId, useEvent } from "./ui"
 
-type Variant = { id: string, name: string, price: number }
+type Variant = { id: string; name: string; price: number }
 type Product = {
   id: string
   name: string
   price: number
   imageUrl: string | null
+  description?: string | null
   categories?: { name: string }[]
   hasVariants?: boolean
   variantType?: string | null
@@ -16,723 +18,880 @@ type Product = {
 }
 
 type SnackBox = {
-  items: { [id: string]: number }
+  items: { [key: string]: number }
   qty: number
   pkg: string
 }
 
-// Custom Quantity Selector Component (Manual Type + Buttons)
-function QuantitySelector({ 
-  value, 
-  onChange, 
-  onRemove 
-}: { 
+type SortKey = "name-asc" | "name-desc" | "price-asc" | "price-desc"
+type PriceKey = "all" | "lt10" | "10-25" | "25-50" | "gt50"
+
+const PLACEHOLDER =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(
+    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 320'><rect width='400' height='320' fill='#eaeee9'/><g fill='none' stroke='#94c9a6' stroke-width='10' stroke-linecap='round'><path d='M150 110v100M130 110v35a20 20 0 0 0 40 0v-35M250 110c-18 0-26 30-26 55h26v45'/></g></svg>`
+  )
+
+const PACKAGING = [
+  { value: "Box", label: "Box Karton", hint: "Kokoh & rapi untuk rapat / seminar" },
+  { value: "Kertas Snack", label: "Kertas Snack", hint: "Praktis & ramah lingkungan" },
+  { value: "Tas Snack", label: "Tas Snack", hint: "Mudah dibawa ke luar ruang" },
+]
+
+/** <img> dengan fallback placeholder bila gambar gagal dimuat */
+function Img({ src, alt = "", className = "", lazy = true }: { src: string | null | undefined; alt?: string; className?: string; lazy?: boolean }) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src || PLACEHOLDER}
+      alt={alt}
+      ref={(el) => {
+        // gambar yang gagal sebelum hydration tidak memicu onError → cek manual
+        if (el && el.complete && el.naturalWidth === 0 && !el.src.startsWith("data:")) el.src = PLACEHOLDER
+      }}
+      loading={lazy ? "lazy" : undefined}
+      className={className}
+      onError={(e) => {
+        const el = e.currentTarget
+        if (el.src !== PLACEHOLDER) {
+          el.src = PLACEHOLDER
+          el.alt = ""
+        }
+      }}
+    />
+  )
+}
+
+const PRICE_RANGES: { value: PriceKey; label: string; test: (n: number) => boolean }[] = [
+  { value: "all", label: "Semua harga", test: () => true },
+  { value: "lt10", label: "Di bawah Rp10.000", test: (n) => n < 10000 },
+  { value: "10-25", label: "Rp10.000 – Rp25.000", test: (n) => n >= 10000 && n <= 25000 },
+  { value: "25-50", label: "Rp25.000 – Rp50.000", test: (n) => n > 25000 && n <= 50000 },
+  { value: "gt50", label: "Di atas Rp50.000", test: (n) => n > 50000 },
+]
+
+const SORTS: { value: SortKey; label: string }[] = [
+  { value: "name-asc", label: "Nama A–Z" },
+  { value: "name-desc", label: "Nama Z–A" },
+  { value: "price-asc", label: "Harga terendah" },
+  { value: "price-desc", label: "Harga tertinggi" },
+]
+
+const formatPrice = (price: number) =>
+  new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(price)
+
+/** Harga tampil: untuk varian harga berbeda → harga varian termurah */
+const displayPrice = (p: Product) => {
+  if (p.hasVariants && p.variantType === "DIFFERENT_PRICE" && p.variants?.length) {
+    return Math.min(...p.variants.map((v) => v.price))
+  }
+  return p.price
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Quantity Selector (ketik manual + tombol)
+   ───────────────────────────────────────────────────────────── */
+function QuantitySelector({
+  value,
+  onChange,
+  onRemove,
+  size = "md",
+  tone = "light",
+  full = false,
+}: {
   value: number
   onChange: (val: number) => void
   onRemove?: () => void
+  size?: "sm" | "md"
+  tone?: "light" | "dark"
+  full?: boolean
 }) {
-  // Local display state lets user fully clear the input while typing
   const [displayValue, setDisplayValue] = useState<string>(String(value))
-
-  // Sync display value if parent changes externally (e.g. via +/- button)
-  useEffect(() => {
+  const [prevValue, setPrevValue] = useState(value)
+  if (value !== prevValue) {
+    setPrevValue(value)
     setDisplayValue(String(value))
-  }, [value])
+  }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Allow only digits, allow empty string while mid-edit
     const raw = e.target.value.replace(/[^0-9]/g, "")
     setDisplayValue(raw)
     if (raw !== "") {
       const num = parseInt(raw, 10)
-      if (!isNaN(num) && num >= 1) {
-        onChange(num)
-      }
+      if (!isNaN(num) && num >= 1) onChange(num)
     }
   }
 
   const handleBlur = () => {
     const num = parseInt(displayValue, 10)
     if (!displayValue || isNaN(num) || num < 1) {
-      // Input left empty → remove item or reset to 1
-      if (onRemove) {
-        onRemove()
-      } else {
+      if (onRemove) onRemove()
+      else {
         onChange(1)
         setDisplayValue("1")
       }
-    } else {
-      // Normalize display (strip leading zeros etc.)
-      setDisplayValue(String(num))
-    }
+    } else setDisplayValue(String(num))
   }
 
   const decrement = () => {
-    if (value > 1) {
-      onChange(value - 1)
-    } else if (onRemove) {
-      onRemove()
-    }
+    if (value > 1) onChange(value - 1)
+    else if (onRemove) onRemove()
   }
 
+  const h = size === "sm" ? "h-8" : "h-10"
+  const w = size === "sm" ? "w-8" : "w-10"
+  const dark = tone === "dark"
+  const btnCls = `${w} h-full grid place-items-center rounded-md transition-all duration-200 active:scale-90 ${dark ? "hover:bg-white/15" : "hover:bg-white"}`
+
   return (
-    <div className="flex items-center border border-hairline rounded-sm overflow-hidden bg-white w-full h-[42px] shadow-sm">
-      <button 
-        type="button" 
-        className="w-10 h-full flex items-center justify-center text-ink hover:bg-surface-1 transition-colors font-bold text-lg" 
-        onClick={decrement}
-        aria-label="Decrease quantity"
-      >
-        <span>-</span>
+    <div className={`flex items-center justify-between rounded-lg ${h} ${full ? "w-full" : ""} ${dark ? "bg-brand-800 text-white" : "bg-surface-1 text-ink"} select-none`}>
+      <button type="button" onClick={decrement} aria-label="Kurangi" className={btnCls}>
+        <Minus size={14} strokeWidth={2.4} />
       </button>
-      <input 
-        type="text" 
-        inputMode="numeric" 
-        pattern="[0-9]*" 
-        className="flex-1 w-0 h-full text-center border-x border-hairline font-semibold text-ink text-sm outline-none bg-transparent" 
-        value={displayValue} 
+      <input
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        aria-label="Jumlah"
+        className="w-9 min-w-0 flex-1 text-center bg-transparent outline-none font-bold text-[13px]"
+        value={displayValue}
         onChange={handleInputChange}
         onBlur={handleBlur}
+        onFocus={(e) => e.target.select()}
       />
-      <button 
-        type="button" 
-        className="w-10 h-full flex items-center justify-center text-ink hover:bg-surface-1 transition-colors font-bold text-lg" 
-        onClick={() => onChange(value + 1)}
-        aria-label="Increase quantity"
-      >
-        <span>+</span>
+      <button type="button" onClick={() => onChange(value + 1)} aria-label="Tambah" className={btnCls}>
+        <Plus size={14} strokeWidth={2.4} />
       </button>
     </div>
   )
 }
 
-
-export default function Catalog({ initialProducts, waNumber }: { initialProducts: Product[], waNumber: string }) {
+/* ─────────────────────────────────────────────────────────────
+   Catalog
+   ───────────────────────────────────────────────────────────── */
+export default function Catalog({ initialProducts, waNumber }: { initialProducts: Product[]; waNumber: string }) {
+  // Filter & sort
   const [activeCategory, setActiveCategory] = useState<string>("Semua")
-  const [cartAnimating, setCartAnimating] = useState(false)
-  
-  // Shopping Cart States
-  const [normalCart, setNormalCart] = useState<{ [id: string]: number }>({})
+  const [priceRange, setPriceRange] = useState<PriceKey>("all")
+  const [sortBy, setSortBy] = useState<SortKey>("name-asc")
+  const [query, setQuery] = useState("")
+
+  // Carts
+  const [normalCart, setNormalCart] = useState<{ [key: string]: number }>({})
   const [snackBoxes, setSnackBoxes] = useState<SnackBox[]>([])
-  
-  // Snack Box Builder States
+
+  // Snack box builder
   const [isBuildingBox, setIsBuildingBox] = useState(false)
-  const [draftBox, setDraftBox] = useState<{ [id: string]: number }>({})
-  const [showBoxDetailsModal, setShowBoxDetailsModal] = useState(false)
+  const [draftBox, setDraftBox] = useState<{ [key: string]: number }>({})
   const [boxQty, setBoxQty] = useState(1)
   const [boxPkg, setBoxPkg] = useState("Box")
-  
-  // Product Modal (Image 2 equivalent)
+
+  // Product modal
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
-  const [selectedVariantId, setSelectedVariantId] = useState<string>('')
-  const [modalMode, setModalMode] = useState<'cart' | 'snack_box'>('snack_box')
+  const [lastProduct, setLastProduct] = useState<Product | null>(null) // tetap tampil saat animasi keluar
+  const [selectedVariantId, setSelectedVariantId] = useState<string>("")
+  const [modalQty, setModalQty] = useState(1)
+  const [modalMode, setModalMode] = useState<"cart" | "snack_box">("cart")
 
-  // Grand Checkout
-  const [showCheckout, setShowCheckout] = useState(false)
-  const [customerInfo, setCustomerInfo] = useState({ name: '', address: '', date: '' })
+  // Cart drawer / checkout
+  const [cartOpen, setCartOpen] = useState(false)
+  const [checkoutStep, setCheckoutStep] = useState<"cart" | "form">("cart")
+  const [customerInfo, setCustomerInfo] = useState({ name: "", address: "", date: "" })
+  const [expandedBox, setExpandedBox] = useState<number | null>(null)
 
-  // Custom Toast State
-  const [toast, setToast] = useState<{ message: string; visible: boolean; type: 'success' | 'error' }>({
-    message: '',
-    visible: false,
-    type: 'success',
-  })
-  const [toastTimeoutId, setToastTimeoutId] = useState<NodeJS.Timeout | null>(null)
-
-  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-    if (toastTimeoutId) {
-      clearTimeout(toastTimeoutId)
-    }
+  // Toast
+  const [toast, setToast] = useState<{ message: string; visible: boolean; type: "success" | "error" }>({ message: "", visible: false, type: "success" })
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    if (toastTimer.current) clearTimeout(toastTimer.current)
     setToast({ message, visible: true, type })
-    const id = setTimeout(() => {
-      setToast(prev => ({ ...prev, visible: false }))
-    }, 3000)
-    setToastTimeoutId(id)
+    toastTimer.current = setTimeout(() => setToast((prev) => ({ ...prev, visible: false })), 2800)
   }
+  useEffect(() => () => void (toastTimer.current && clearTimeout(toastTimer.current)), [])
 
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (toastTimeoutId) clearTimeout(toastTimeoutId)
+  // Header ↔ Catalog events
+  useEvent<string>(EVT.search, (q) => setQuery(q ?? ""))
+  useEvent<string>(EVT.category, (cat) => {
+    if (cat === "__builder__") {
+      setIsBuildingBox(true)
+      return
     }
-  }, [toastTimeoutId])
+    setIsBuildingBox(false)
+    setActiveCategory(cat)
+  })
+  useEvent(EVT.openCart, () => {
+    setCheckoutStep("cart")
+    setCartOpen(true)
+  })
 
   const categories = useMemo(() => {
-    const cats = new Set(initialProducts.flatMap(p => p.categories?.map(c => c.name) || []))
-    return ["Semua", ...Array.from(cats)] as string[]
+    const cats = new Set(initialProducts.flatMap((p) => p.categories?.map((c) => c.name) || []))
+    return ["Semua", ...Array.from(cats)]
   }, [initialProducts])
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(price)
-  }
-
   const getCartItemInfo = (cartKey: string) => {
-    const [pId, vId] = cartKey.split('__')
-    const p = initialProducts.find(x => x.id === pId)
+    const [pId, vId] = cartKey.split("__")
+    const p = initialProducts.find((x) => x.id === pId)
     if (!p) return null
     if (vId && p.variants) {
-      const v = p.variants.find(x => x.id === vId)
-      if (v) {
-        return { product: p, variant: v, name: `${p.name} - ${v.name}`, price: p.variantType === 'DIFFERENT_PRICE' ? v.price : p.price }
-      }
+      const v = p.variants.find((x) => x.id === vId)
+      if (v) return { product: p, variant: v, name: `${p.name} - ${v.name}`, price: p.variantType === "DIFFERENT_PRICE" ? v.price : p.price }
     }
-    return { product: p, variant: null, name: p.name, price: p.price }
+    return { product: p, variant: null as Variant | null, name: p.name, price: p.price }
   }
 
-  // --- Normal Cart Logic ---
-  const addToNormalCart = (product: Product, variantId?: string) => {
+  const boxUnitPrice = (items: { [key: string]: number }) =>
+    Object.entries(items).reduce((sum, [key, qty]) => sum + (getCartItemInfo(key)?.price || 0) * qty, 0)
+
+  // ── Filtering ─────────────────────────────────────────────
+  const visibleProducts = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const range = PRICE_RANGES.find((r) => r.value === priceRange)!
+    const list = initialProducts.filter((p) => {
+      if (!isBuildingBox && activeCategory !== "Semua" && !p.categories?.some((c) => c.name === activeCategory)) return false
+      if (!range.test(displayPrice(p))) return false
+      if (q) {
+        const hay = [p.name, ...(p.categories?.map((c) => c.name) || []), ...(p.variants?.map((v) => v.name) || [])].join(" ").toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      return true
+    })
+    const sorted = [...list]
+    sorted.sort((a, b) => {
+      switch (sortBy) {
+        case "name-desc":
+          return b.name.localeCompare(a.name, "id")
+        case "price-asc":
+          return displayPrice(a) - displayPrice(b)
+        case "price-desc":
+          return displayPrice(b) - displayPrice(a)
+        default:
+          return a.name.localeCompare(b.name, "id")
+      }
+    })
+    return sorted
+  }, [initialProducts, activeCategory, priceRange, sortBy, query, isBuildingBox])
+
+  const gridKey = `${activeCategory}|${priceRange}|${sortBy}|${query}|${isBuildingBox}`
+  const filtersActive = activeCategory !== "Semua" || priceRange !== "all" || !!query
+
+  const resetFilters = () => {
+    setActiveCategory("Semua")
+    setPriceRange("all")
+    setQuery("")
+    emit(EVT.search, "")
+  }
+
+  // ── Normal cart ──────────────────────────────────────────
+  const addToNormalCart = (product: Product, variantId?: string, qty = 1) => {
     const key = variantId ? `${product.id}__${variantId}` : product.id
-    setNormalCart(prev => ({ ...prev, [key]: (prev[key] || 0) + 1 }))
-    
-    const variantName = variantId ? ` - ${product.variants?.find(v => v.id === variantId)?.name}` : ''
-    showToast(`${product.name}${variantName} ditambahkan ke keranjang!`, 'success')
-    
-    setCartAnimating(true)
-    setTimeout(() => setCartAnimating(false), 300)
+    setNormalCart((prev) => ({ ...prev, [key]: (prev[key] || 0) + qty }))
+    const variantName = variantId ? ` - ${product.variants?.find((v) => v.id === variantId)?.name}` : ""
+    showToast(`${product.name}${variantName} masuk keranjang`)
     setSelectedProduct(null)
   }
 
   const updateNormalCartQty = (cartKey: string, qty: number) => {
     if (qty <= 0) {
-      setNormalCart(prev => {
+      setNormalCart((prev) => {
         const next = { ...prev }
         delete next[cartKey]
         return next
       })
       const info = getCartItemInfo(cartKey)
-      if (info) showToast(`${info.name} dihapus dari keranjang`, 'success')
-    } else {
-      setNormalCart(prev => ({ ...prev, [cartKey]: qty }))
-    }
+      if (info) showToast(`${info.name} dihapus dari keranjang`)
+    } else setNormalCart((prev) => ({ ...prev, [cartKey]: qty }))
   }
 
-  const normalCartTotalItems = Object.values(normalCart).reduce((a, b) => a + b, 0)
-  const normalCartTotalPrice = Object.entries(normalCart).reduce((sum, [key, qty]) => {
-    const info = getCartItemInfo(key)
-    return sum + (info?.price || 0) * qty
-  }, 0)
-
-  // --- Box Builder Logic ---
-  const openProductModal = (product: Product, mode: 'cart' | 'snack_box') => {
+  // ── Builder ──────────────────────────────────────────────
+  const openProductModal = (product: Product, mode: "cart" | "snack_box") => {
     setSelectedProduct(product)
+    setLastProduct(product)
     setModalMode(mode)
-    if (product.hasVariants && product.variants && product.variants.length > 0) {
-      setSelectedVariantId(product.variants[0].id)
-    } else {
-      setSelectedVariantId('')
-    }
+    setModalQty(1)
+    setSelectedVariantId(product.hasVariants && product.variants?.length ? product.variants[0].id : "")
   }
 
-  const addToDraftBox = (product: Product, variantId?: string) => {
+  const addToDraftBox = (product: Product, variantId?: string, qty = 1) => {
     const key = variantId ? `${product.id}__${variantId}` : product.id
-    setDraftBox(prev => ({ ...prev, [key]: (prev[key] || 0) + 1 }))
-    showToast(`${product.name} dimasukkan ke Snack Box!`, 'success')
+    setDraftBox((prev) => ({ ...prev, [key]: (prev[key] || 0) + qty }))
+    showToast(`${product.name} masuk ke box`)
     setSelectedProduct(null)
   }
 
-  const updateDraftBoxQty = (productId: string, qty: number) => {
-    if (qty <= 0) {
-      removeFromDraftBox(productId)
-    } else {
-      setDraftBox(prev => ({ ...prev, [productId]: qty }))
-    }
-  }
-
-  const removeFromDraftBox = (id: string) => {
-    setDraftBox(prev => {
-      const newDraft = { ...prev }
-      delete newDraft[id]
-      return newDraft
+  const removeFromDraftBox = (key: string) => {
+    setDraftBox((prev) => {
+      const next = { ...prev }
+      delete next[key]
+      return next
     })
-    const p = initialProducts.find(p => p.id === id)
-    if (p) showToast(`${p.name} dikeluarkan dari racikan box`, 'success')
+    const info = getCartItemInfo(key)
+    if (info) showToast(`${info.name} dikeluarkan dari racikan`)
   }
 
-  const draftBoxTotalPrice = Object.entries(draftBox).reduce((sum, [id, qty]) => {
-    const p = initialProducts.find(p => p.id === id)
-    return sum + (p?.price || 0) * qty
-  }, 0)
-
-  const saveDraftBox = () => {
-    if (Object.keys(draftBox).length === 0) {
-      showToast("Isi snack box belum dipilih!", "error")
-      return
-    }
-    setShowBoxDetailsModal(true)
+  const updateDraftBoxQty = (key: string, qty: number) => {
+    if (qty <= 0) removeFromDraftBox(key)
+    else setDraftBox((prev) => ({ ...prev, [key]: qty }))
   }
+
+  const draftBoxTotalPrice = boxUnitPrice(draftBox)
+  const draftCount = Object.values(draftBox).reduce((a, b) => a + b, 0)
 
   const confirmSnackBox = () => {
-    if (boxQty < 1) {
-      showToast("Jumlah paket minimal 1 box!", "error")
-      return
-    }
-    setSnackBoxes(prev => [...prev, { items: draftBox, qty: boxQty, pkg: boxPkg }])
+    if (Object.keys(draftBox).length === 0) return showToast("Isi snack box belum dipilih!", "error")
+    if (boxQty < 1) return showToast("Jumlah paket minimal 1 box!", "error")
+    setSnackBoxes((prev) => [...prev, { items: draftBox, qty: boxQty, pkg: boxPkg }])
     setDraftBox({})
     setBoxQty(1)
     setBoxPkg("Box")
-    setShowBoxDetailsModal(false)
     setIsBuildingBox(false)
     setActiveCategory("Semua")
-    showToast("Paket Snack Box berhasil disimpan ke keranjang!", "success")
-    setCartAnimating(true)
-    setTimeout(() => setCartAnimating(false), 300)
+    showToast("Paket Snack Box tersimpan di keranjang")
   }
 
-  // --- Grand Totals ---
+  // ── Totals ───────────────────────────────────────────────
+  const normalCartTotalItems = Object.values(normalCart).reduce((a, b) => a + b, 0)
+  const normalCartTotalPrice = Object.entries(normalCart).reduce((sum, [key, qty]) => sum + (getCartItemInfo(key)?.price || 0) * qty, 0)
   const grandTotalItems = normalCartTotalItems + snackBoxes.reduce((sum, box) => sum + box.qty, 0)
-  const grandTotalPrice = normalCartTotalPrice + snackBoxes.reduce((sum, box) => {
-    const boxPrice = Object.entries(box.items).reduce((bSum, [id, qty]) => {
-      const p = initialProducts.find(p => p.id === id)
-      return bSum + (p?.price || 0) * qty
-    }, 0)
-    return sum + (boxPrice * box.qty)
-  }, 0)
+  const grandTotalPrice = normalCartTotalPrice + snackBoxes.reduce((sum, box) => sum + boxUnitPrice(box.items) * box.qty, 0)
 
-  // --- WhatsApp Checkout ---
+  useEffect(() => emit(EVT.cartCount, grandTotalItems), [grandTotalItems])
+
+  // ── WhatsApp checkout ────────────────────────────────────
   const handleCheckout = () => {
-    if (!customerInfo.name || !customerInfo.address || !customerInfo.date) {
-      showToast("Mohon lengkapi data pengiriman!", "error")
-      return
-    }
-
-    if (grandTotalItems === 0) {
-      showToast("Keranjang belanja Anda masih kosong!", "error")
-      return
-    }
+    if (grandTotalItems === 0) return showToast("Keranjang belanja Anda masih kosong!", "error")
+    if (!customerInfo.name || !customerInfo.address || !customerInfo.date) return showToast("Mohon lengkapi data pengiriman!", "error")
 
     let text = `Halo Kauny Catering, saya ingin pesan:\n\n`
-    
     if (Object.keys(normalCart).length > 0) {
       text += `*Pesanan Satuan:*\n`
-      Object.entries(normalCart).forEach(([id, qty]) => {
-        const p = initialProducts.find(p => p.id === id)
-        if (p) text += `- ${p.name} (${qty} x ${formatPrice(p.price)}) = ${formatPrice(p.price * qty)}\n`
+      Object.entries(normalCart).forEach(([key, qty]) => {
+        const info = getCartItemInfo(key)
+        if (info) text += `- ${info.name} (${qty} x ${formatPrice(info.price)}) = ${formatPrice(info.price * qty)}\n`
       })
       text += `\n`
     }
-
     if (snackBoxes.length > 0) {
       text += `*Pesanan Paket (Snack Box):*\n`
       snackBoxes.forEach((box, index) => {
-        const boxPrice = Object.entries(box.items).reduce((sum, [id, qty]) => {
-          const p = initialProducts.find(p => p.id === id)
-          return sum + (p?.price || 0) * qty
-        }, 0)
-        
+        const unit = boxUnitPrice(box.items)
         text += `\n📦 *Paket ${index + 1}* (${box.qty} Box) - Kemasan: ${box.pkg}\n`
-        Object.entries(box.items).forEach(([id, qty]) => {
-          const p = initialProducts.find(p => p.id === id)
-          if (p) text += `   - ${qty}x ${p.name}\n`
+        Object.entries(box.items).forEach(([key, qty]) => {
+          const info = getCartItemInfo(key)
+          if (info) text += `   - ${qty}x ${info.name}\n`
         })
-        text += `   Subtotal Paket: ${box.qty} x ${formatPrice(boxPrice)} = ${formatPrice(boxPrice * box.qty)}\n`
+        text += `   Subtotal Paket: ${box.qty} x ${formatPrice(unit)} = ${formatPrice(unit * box.qty)}\n`
       })
       text += `\n`
     }
-    
+    const tgl = new Date(customerInfo.date + "T00:00:00").toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
     text += `*Total Harga Keseluruhan: ${formatPrice(grandTotalPrice)}*\n\n`
-    text += `*Data Pengiriman:*\n`
-    text += `Nama: ${customerInfo.name}\n`
-    text += `Alamat: ${customerInfo.address}\n`
-    text += `Tanggal: ${customerInfo.date}\n`
+    text += `*Data Pengiriman:*\nNama: ${customerInfo.name}\nAlamat: ${customerInfo.address}\nTanggal: ${tgl}\n`
 
-    const url = `https://wa.me/${waNumber}?text=${encodeURIComponent(text)}`
-    window.open(url, '_blank')
+    window.open(`https://wa.me/${waNumber}?text=${encodeURIComponent(text)}`, "_blank")
   }
 
+  const todayStr = useMemo(() => {
+    const d = new Date()
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+    return d.toISOString().slice(0, 10)
+  }, [])
+
+  const mp = selectedProduct || lastProduct
+  const modalUnitPrice = mp
+    ? mp.hasVariants && mp.variantType === "DIFFERENT_PRICE"
+      ? mp.variants?.find((v) => v.id === selectedVariantId)?.price || 0
+      : mp.price
+    : 0
+
+  const categoryOptions = categories.map((c) => ({
+    value: c,
+    label: c === "Semua" ? "Semua Kategori" : c,
+    hint: `${c === "Semua" ? initialProducts.length : initialProducts.filter((p) => p.categories?.some((x) => x.name === c)).length} menu`,
+  }))
+
+  const openCart = () => {
+    setCheckoutStep("cart")
+    setCartOpen(true)
+  }
+
+  /* ═════════════════════════ RENDER ═════════════════════════ */
   return (
     <>
-      {/* Custom Toast Notification */}
-      <div className={`toast-container ${toast.visible ? 'visible' : ''} ${toast.type}`}>
+      {/* Toast */}
+      <div className={`toast-container ${toast.visible ? "visible" : ""}`} role="status" aria-live="polite">
         <div className="toast-content">
-          {toast.type === 'success' ? (
-            <svg className="toast-icon success" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-              <polyline points="20 6 9 17 4 12"></polyline>
-            </svg>
-          ) : (
-            <svg className="toast-icon error" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="12" y1="8" x2="12" y2="12"></line>
-              <line x1="12" y1="16" x2="12.01" y2="16"></line>
-            </svg>
-          )}
+          <span className={`toast-icon ${toast.type}`}>{toast.type === "success" ? <Check size={13} strokeWidth={3} /> : <X size={13} strokeWidth={3} />}</span>
           <span className="toast-text">{toast.message}</span>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-12">
-        {/* Horizontal Category Scroll (AWS Service Tags) */}
-        <div className="flex gap-2 overflow-x-auto pb-4 mb-8 no-scrollbar items-center">
-          <button 
-            className={`px-4 py-2 rounded-sm text-xs font-semibold whitespace-nowrap transition-colors ${!isBuildingBox && activeCategory === "Semua" ? 'bg-ink text-white' : 'bg-surface-1 text-ink-body hover:bg-gray-200'}`}
-            onClick={() => { setIsBuildingBox(false); setActiveCategory("Semua") }}
-          >
-            Semua Menu
-          </button>
-          
-          {categories.filter(c => c !== "Semua").map(cat => (
-            <button 
-              key={cat}
-              className={`px-4 py-2 rounded-sm text-xs font-semibold whitespace-nowrap transition-colors ${!isBuildingBox && activeCategory === cat ? 'bg-ink text-white' : 'bg-surface-1 text-ink-body hover:bg-gray-200'}`}
-              onClick={() => { setIsBuildingBox(false); setActiveCategory(cat) }}
-            >
-              {cat}
-            </button>
-          ))}
-
-          <div className="w-[1px] h-6 bg-hairline mx-2 flex-shrink-0"></div>
-
-          <button 
-            className={`px-4 py-2 rounded-full border border-hairline text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-2 ${isBuildingBox ? 'bg-primary text-white border-primary' : 'bg-white text-primary hover:bg-surface-1'}`}
-            onClick={() => { setIsBuildingBox(true) }}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19"></line>
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg>
-            Buat Paket Snack
-          </button>
+      {/* ── Heading ───────────────────────────── */}
+      <Reveal className="flex items-end justify-between gap-4 mb-4">
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand-600 mb-1.5">{isBuildingBox ? "Mode racik paket" : "Katalog"}</div>
+          <h2 className="text-xl sm:text-3xl font-extrabold text-ink tracking-tight">{isBuildingBox ? "Racik Snack Box" : "Semua Menu"}</h2>
         </div>
+        <div className="text-[12px] sm:text-[13px] text-ink-faded pb-0.5">
+          <b className="text-ink">{visibleProducts.length}</b> menu
+        </div>
+      </Reveal>
 
-        {/* Builder Summary Section */}
-        {isBuildingBox && (
-          <div className="bg-surface-1 border border-hairline rounded-aws-card p-6 mb-8 shadow-sm">
-            <div className="text-xs font-semibold text-ink-faded mb-4 uppercase tracking-wider">
-              <span className="text-primary">Pilih Isi Snack Box</span> &gt; Pengemasan &amp; Jumlah
-            </div>
-            
-            <h2 className="text-2xl font-bold text-ink mb-6">Snack Box Builder</h2>
-            
-            {Object.keys(draftBox).length > 0 ? (
+      {/* ── Filter bar ───────────────────────── */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <Dropdown
+          value={activeCategory}
+          options={categoryOptions}
+          onChange={(v) => {
+            setIsBuildingBox(false)
+            setActiveCategory(v)
+          }}
+          variant="solid"
+          className="flex-1 sm:flex-none min-w-0"
+          fullWidth
+          menuTitle="Kategori"
+        />
+        <div className="hidden sm:block">
+          <Dropdown value={priceRange} options={PRICE_RANGES.map(({ value, label }) => ({ value, label }))} onChange={setPriceRange} label="Harga" variant="outline" menuTitle="Rentang harga" />
+        </div>
+        <button
+          onClick={() => setIsBuildingBox((b) => !b)}
+          className={`hidden sm:inline-flex items-center h-9 px-3.5 rounded-lg border text-[13px] font-semibold transition-all duration-300 ease-smooth
+            ${isBuildingBox ? "bg-accent border-accent text-brand-950" : "bg-white border-hairline text-ink hover:border-brand-300"}`}
+        >
+          {isBuildingBox ? "Keluar mode racik" : "Racik Snack Box"}
+        </button>
+        {filtersActive && (
+          <button onClick={resetFilters} className="hidden sm:inline-flex h-9 px-2 text-[13px] font-semibold text-ink-faded hover:text-cherry transition-colors animate-fade-up">
+            Reset
+          </button>
+        )}
+        <div className="sm:ml-auto">
+          <Dropdown value={sortBy} options={SORTS} onChange={setSortBy} placeholder="Urutkan" variant="outline" align="right" menuTitle="Urutkan" />
+        </div>
+      </div>
+
+      {/* HP: ajakan racik paket (ganti tombol di filter) */}
+      {!isBuildingBox && (
+        <button
+          onClick={() => setIsBuildingBox(true)}
+          className="sm:hidden w-full mb-4 flex items-center justify-between gap-3 rounded-lg bg-accent-soft px-4 py-3 text-left"
+        >
+          <span>
+            <span className="block text-[13px] font-bold text-brand-900">Racik snack box sendiri</span>
+            <span className="block text-[11.5px] text-ink-body mt-0.5">Pilih isi, kemasan, lalu jumlah box</span>
+          </span>
+          <ArrowRight size={16} className="text-brand-800 shrink-0" />
+        </button>
+      )}
+
+      {/* Active search chip */}
+      {query && (
+        <div className="mb-4 flex items-center gap-2 text-[13px] animate-fade-up">
+          <span className="text-ink-faded">Hasil untuk</span>
+          <span className="inline-flex items-center gap-1.5 h-7 pl-2.5 pr-1 rounded-md bg-brand-50 text-brand-800 font-semibold">
+            “{query}”
+            <button onClick={() => { setQuery(""); emit(EVT.search, "") }} className="grid place-items-center h-5 w-5 rounded hover:bg-brand-100" aria-label="Hapus pencarian">
+              <X size={12} strokeWidth={2.6} />
+            </button>
+          </span>
+        </div>
+      )}
+
+      {/* ── Builder panel (tanpa modal: kemasan & jumlah langsung di sini) ── */}
+      <div id="builder" className={`grid scroll-mt-32 transition-all duration-500 ease-smooth ${isBuildingBox ? "grid-rows-[1fr] opacity-100 mb-5" : "grid-rows-[0fr] opacity-0 mb-0"}`}>
+        <div className="overflow-hidden">
+          <div className="rounded-xl border border-brand-200 bg-brand-50/60 p-4 sm:p-6">
+            <div className="flex items-start justify-between gap-3 mb-4">
               <div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse mb-6">
-                    <thead>
-                      <tr className="border-b border-hairline">
-                        <th className="py-3 px-4 text-xs font-semibold text-ink-faded uppercase tracking-wider">Gambar</th>
-                        <th className="py-3 px-4 text-xs font-semibold text-ink-faded uppercase tracking-wider">Menu</th>
-                        <th className="py-3 px-4 text-xs font-semibold text-ink-faded uppercase tracking-wider">Harga</th>
-                        <th className="py-3 px-4 text-xs font-semibold text-ink-faded uppercase tracking-wider text-center">Aksi</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {Object.entries(draftBox).map(([id, qty]) => {
-                        const info = getCartItemInfo(id)
-                        if (!info || !info.product) return null
-                        return (
-                          <tr key={id} className="border-b border-hairline border-opacity-50">
-                            <td className="py-3 px-4">
-                              <img src={info.product.imageUrl || 'https://via.placeholder.com/60'} alt={info.name} className="w-12 h-12 rounded-sm object-cover" />
-                            </td>
-                            <td className="py-3 px-4">
-                              <div className="font-semibold text-ink text-sm">{info.name}</div>
-                              <div className="text-xs text-ink-faded mt-1">{info.variant ? info.variant.name : 'Standar'}</div>
-                              <div className="mt-2 w-32">
-                                <QuantitySelector 
-                                  value={qty} 
-                                  onChange={(val) => updateDraftBoxQty(id, val)}
-                                  onRemove={() => removeFromDraftBox(id)}
-                                />
-                              </div>
-                            </td>
-                            <td className="py-3 px-4 font-semibold text-ink text-sm">{formatPrice(info.price * qty)}</td>
-                            <td className="py-3 px-4 text-center">
-                              <button className="text-ink-faded hover:text-primary transition-colors" onClick={() => removeFromDraftBox(id)} aria-label="Remove item">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                              </button>
-                            </td>
-                          </tr>
-                        )
-                      })}
-                      <tr>
-                        <td colSpan={2} className="py-4 px-4 font-bold text-right text-ink">Sub Total (1 Box):</td>
-                        <td className="py-4 px-4 font-bold text-primary">{formatPrice(draftBoxTotalPrice)}</td>
-                        <td></td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div className="text-right">
-                  <button className="px-6 py-3 bg-primary text-white rounded-aws-pill font-bold text-sm shadow-aws-elevation-1 hover:bg-primary-hover transition-colors" onClick={saveDraftBox}>
-                    Selesai, Lanjut Kemas
-                  </button>
-                </div>
+                <h3 className="text-[15px] sm:text-lg font-bold text-ink">Isi 1 box</h3>
+                <p className="text-[12px] sm:text-[13px] text-ink-faded mt-0.5">Tekan + pada menu di bawah untuk menambah isi.</p>
               </div>
+              <button onClick={() => setIsBuildingBox(false)} className="shrink-0 text-[12px] font-semibold text-ink-faded hover:text-cherry">
+                Batal
+              </button>
+            </div>
+
+            {Object.keys(draftBox).length > 0 ? (
+              <ul className="divide-y divide-brand-100 rounded-lg bg-white">
+                {Object.entries(draftBox).map(([key, qty]) => {
+                  const info = getCartItemInfo(key)
+                  if (!info) return null
+                  return (
+                    <li key={key} className="flex items-center gap-3 p-2.5 animate-fade-up">
+                      <Img src={info.product.imageUrl} className="h-10 w-10 rounded-md object-cover shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[13px] font-semibold text-ink truncate">{info.name}</div>
+                        <div className="text-[11.5px] text-ink-faded">{formatPrice(info.price * qty)}</div>
+                      </div>
+                      <div className="w-[104px] shrink-0">
+                        <QuantitySelector value={qty} size="sm" full onChange={(v) => updateDraftBoxQty(key, v)} onRemove={() => removeFromDraftBox(key)} />
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
             ) : (
-              <div className="text-center py-12 bg-white rounded-aws-card border border-hairline border-dashed">
-                <p className="text-ink-faded text-sm">Silakan pilih dan tambahkan produk-produk lezat di bawah ini ke dalam snack box Anda.</p>
+              <div className="rounded-lg border border-dashed border-brand-200 bg-white/70 px-4 py-5 text-center text-[13px] text-ink-faded">
+                Box masih kosong.
               </div>
             )}
-          </div>
-        )}
 
-        {/* AWS Thumbnail Cards Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {initialProducts.filter(p => isBuildingBox ? true : (activeCategory === "Semua" || p.categories?.some(c => c.name === activeCategory))).map(p => {
-            const inCartQty = normalCart[p.id] || 0
-            return (
-              <div key={p.id} className="relative bg-white border border-hairline rounded-aws-card overflow-hidden flex flex-col group transition-all duration-300 hover:shadow-aws-elevation-1 hover:border-primary">
-                <div className="absolute inset-0 bg-gradient-to-t from-surface-1 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-0"></div>
-                <div className="relative w-full h-48 overflow-hidden bg-white z-10">
-                  <img src={p.imageUrl || 'https://via.placeholder.com/300?text=Product'} alt={p.name} className="w-full h-full object-cover" loading="lazy" />
+            <div className={`grid transition-all duration-500 ease-smooth ${draftCount > 0 ? "grid-rows-[1fr] opacity-100 mt-4" : "grid-rows-[0fr] opacity-0"}`}>
+              <div className="overflow-hidden">
+                <div className="grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_auto_auto] items-end gap-3">
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="form-label">Kemasan</label>
+                    <Dropdown value={boxPkg} options={PACKAGING} onChange={setBoxPkg} variant="field" fullWidth menuTitle="Jenis kemasan" />
+                  </div>
+                  <div>
+                    <label className="form-label">Jumlah box</label>
+                    <div className="w-[128px]">
+                      <QuantitySelector value={boxQty} onChange={setBoxQty} full />
+                    </div>
+                  </div>
+                  <button onClick={confirmSnackBox} className="btn h-10">
+                    Simpan · {formatPrice(draftBoxTotalPrice * boxQty)}
+                  </button>
                 </div>
-                <div className="p-5 flex flex-col flex-1 z-10">
-                  <h3 className="font-bold text-ink text-sm md:text-base mb-1">{p.name}</h3>
-                  <div className="font-semibold text-primary text-sm mb-4">{formatPrice(p.price)}</div>
-                  
-                  <div className="mt-auto">
-                    {isBuildingBox ? (
-                      <button className="w-full py-2.5 px-4 bg-white border border-hairline text-ink font-semibold rounded-sm text-xs md:text-sm shadow-sm hover:bg-surface-1 transition-colors flex items-center justify-center gap-2" onClick={() => openProductModal(p, 'snack_box')}>
-                        <Package size={16} /> Tambah ke Box
-                      </button>
+                <p className="form-help">{draftCount} item per box · {formatPrice(draftBoxTotalPrice)} / box</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Product grid ───────────────────── */}
+      {visibleProducts.length > 0 ? (
+        <div key={gridKey} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-4">
+          {visibleProducts.map((p, i) => {
+            const inCartQty = normalCart[p.id] || 0
+            const sumFor = (obj: { [k: string]: number }) =>
+              Object.entries(obj).reduce((n, [k, q]) => (k === p.id || k.startsWith(p.id + "__") ? n + q : n), 0)
+            const badgeQty = isBuildingBox ? sumFor(draftBox) : sumFor(normalCart)
+            const price = displayPrice(p)
+            const fromPrice = p.hasVariants && p.variantType === "DIFFERENT_PRICE" && (p.variants?.length || 0) > 1
+            const cat = p.categories?.[0]?.name
+            const subline = p.hasVariants && p.variants?.length ? `${p.variants.length} varian` : p.categories?.map((c) => c.name).join(", ") || "Menu satuan"
+            const showStepper = !isBuildingBox && inCartQty > 0 && !p.hasVariants
+
+            const onAdd = () => {
+              if (p.hasVariants) openProductModal(p, isBuildingBox ? "snack_box" : "cart")
+              else if (isBuildingBox) addToDraftBox(p)
+              else addToNormalCart(p)
+            }
+
+            return (
+              <article
+                key={p.id}
+                className="card-in group relative flex flex-col rounded-xl bg-surface-1 p-2 sm:p-2.5 transition-all duration-500 ease-smooth hover:bg-white hover:shadow-lift sm:hover:-translate-y-1"
+                style={{ ["--i" as string]: Math.min(i, 14) }}
+              >
+                <div className="relative w-full aspect-square overflow-hidden rounded-lg bg-white">
+                  <Img src={p.imageUrl} alt={p.name} className="h-full w-full object-cover transition-transform duration-700 ease-smooth group-hover:scale-[1.06]" />
+                  {cat && <span className="badge absolute left-1.5 top-1.5 bg-tangerine text-white">{cat}</span>}
+                  {badgeQty > 0 && (
+                    <span className="absolute right-1.5 top-1.5 grid place-items-center h-5 min-w-[22px] px-1 rounded bg-accent text-brand-950 text-[10.5px] font-extrabold animate-fade-up">
+                      {badgeQty}×
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-col flex-1 px-1 pt-2.5">
+                  <h3 className="text-[12.5px] sm:text-[14px] font-semibold text-ink leading-snug line-clamp-2 min-h-[2.5em]">{p.name}</h3>
+                  <div className="mt-0.5 text-[11px] sm:text-[12px] text-ink-faded truncate">{subline}</div>
+
+                  <div className="mt-auto pt-2.5">
+                    {showStepper ? (
+                      <>
+                        <div className="text-[14px] sm:text-base font-extrabold text-ink mb-1.5">{formatPrice(price)}</div>
+                        <div className="animate-fade-up">
+                          <QuantitySelector value={inCartQty} size="sm" tone="dark" full onChange={(q) => updateNormalCartQty(p.id, q)} onRemove={() => updateNormalCartQty(p.id, 0)} />
+                        </div>
+                      </>
                     ) : (
-                      inCartQty > 0 ? (
-                        <QuantitySelector 
-                          value={inCartQty} 
-                          onChange={(qty) => updateNormalCartQty(p.id, qty)}
-                          onRemove={() => updateNormalCartQty(p.id, 0)}
-                        />
-                      ) : (
-                        <button className="w-full py-2.5 px-4 bg-white border border-hairline text-ink font-semibold rounded-sm text-xs md:text-sm shadow-sm hover:bg-surface-1 transition-colors flex items-center justify-center gap-2" onClick={() => {
-                          if (p.hasVariants) {
-                            openProductModal(p, 'cart')
-                          } else {
-                            addToNormalCart(p)
-                          }
-                        }}>
-                          <ShoppingCart size={16} /> Tambah Keranjang
+                      <div className="flex items-end justify-between gap-2">
+                        <div className="leading-tight min-w-0">
+                          {fromPrice && <div className="text-[10px] text-ink-faded">Mulai</div>}
+                          <div className="text-[14px] sm:text-base font-extrabold text-ink truncate">{formatPrice(price)}</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={onAdd}
+                          className={`add-fab ${isBuildingBox ? "bg-accent text-brand-950 hover:bg-accent-hover" : ""}`}
+                          aria-label={isBuildingBox ? "Tambah ke box" : "Tambah ke keranjang"}
+                        >
+                          <Plus size={16} strokeWidth={2.6} />
                         </button>
-                      )
+                      </div>
                     )}
                   </div>
                 </div>
-              </div>
+              </article>
             )
           })}
         </div>
-      </div>
+      ) : (
+        <div className="text-center rounded-xl bg-surface-1 px-6 py-14 animate-fade-up">
+          <h3 className="text-base font-bold text-ink">Menu tidak ditemukan</h3>
+          <p className="text-[13px] text-ink-faded mt-1">
+            {initialProducts.length === 0 ? "Belum ada menu yang ditambahkan." : "Coba ubah kata kunci, kategori, atau rentang harga."}
+          </p>
+          {filtersActive && (
+            <button onClick={resetFilters} className="btn btn-outline mt-4">
+              Reset filter
+            </button>
+          )}
+        </div>
+      )}
 
-      {/* Product Details Modal (Image 2 - HTML Replacement) */}'
-      {selectedProduct && (
-        <div className="modal-overlay" onClick={() => setSelectedProduct(null)}>
-          <div className="modal-content product-modal" onClick={e => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setSelectedProduct(null)}>&times;</button>
-            <div className="modal-body-split">
-              <div className="modal-image-wrapper">
-                <img src={selectedProduct.imageUrl || 'https://via.placeholder.com/250'} alt={selectedProduct.name} className="modal-image" />
-              </div>
-              <div className="modal-details">
-                <div className="modal-title">{selectedProduct.name}</div>
-                
-                {selectedProduct.hasVariants && selectedProduct.variants && selectedProduct.variants.length > 0 && (
-                  <div className="modal-select-wrapper">
-                    <label className="form-label" style={{ fontSize: '12px' }}>Pilih Varian / Ukuran</label>
-                    <select 
-                      className="form-input" 
-                      style={{ width: '100%', borderRadius: '8px' }}
-                      value={selectedVariantId}
-                      onChange={e => setSelectedVariantId(e.target.value)}
-                    >
-                      {selectedProduct.variants.map(v => (
-                        <option key={v.id} value={v.id}>{v.name} {selectedProduct.variantType === 'DIFFERENT_PRICE' ? `- ${formatPrice(v.price)}` : ''}</option>
-                      ))}
-                    </select>
+      {/* ── Modal varian (hanya untuk produk yang punya varian) ── */}
+      <Modal open={!!selectedProduct} onClose={() => setSelectedProduct(null)} size="lg" bare>
+        {mp && (
+          <div className="sm:grid sm:grid-cols-[240px_1fr]">
+            <div className="relative bg-surface-1 h-44 sm:h-auto">
+              <Img src={mp.imageUrl} alt={mp.name} lazy={false} className="absolute inset-0 h-full w-full object-cover" />
+            </div>
+            <div className="p-5 sm:p-6">
+              <h3 className="text-lg sm:text-xl font-extrabold text-ink leading-snug pr-10">{mp.name}</h3>
+              <div className="mt-1 text-lg font-extrabold text-brand-800">{formatPrice(modalUnitPrice)}</div>
+
+              {mp.variants && mp.variants.length > 0 && (
+                <div className="mt-5">
+                  <div className="form-label">Pilih varian</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {mp.variants.map((v) => {
+                      const on = v.id === selectedVariantId
+                      return (
+                        <button
+                          key={v.id}
+                          type="button"
+                          onClick={() => setSelectedVariantId(v.id)}
+                          className={`text-left rounded-lg border px-3 py-2.5 transition-all duration-200 ease-smooth
+                          ${on ? "border-brand-700 bg-brand-50 ring-2 ring-brand-100" : "border-hairline hover:border-brand-300"}`}
+                        >
+                          <span className={`block text-[13px] font-semibold ${on ? "text-brand-800" : "text-ink"}`}>{v.name}</span>
+                          {mp.variantType === "DIFFERENT_PRICE" && <span className="block text-[11.5px] text-ink-faded mt-0.5">{formatPrice(v.price)}</span>}
+                        </button>
+                      )
+                    })}
                   </div>
-                )}
+                </div>
+              )}
 
-                <div className="modal-price">
-                  {selectedProduct.hasVariants && selectedProduct.variantType === 'DIFFERENT_PRICE'
-                    ? formatPrice(selectedProduct.variants?.find(v => v.id === selectedVariantId)?.price || 0)
-                    : formatPrice(selectedProduct.price)}
+              <div className="mt-5 flex items-center gap-3">
+                <div className="w-[120px] shrink-0">
+                  <QuantitySelector value={modalQty} onChange={setModalQty} full />
                 </div>
-                <div className="modal-actions">
-                  <button className="btn" onClick={() => {
-                    if (modalMode === 'snack_box') {
-                      addToDraftBox(selectedProduct, selectedProduct.hasVariants ? selectedVariantId : undefined)
-                    } else {
-                      addToNormalCart(selectedProduct, selectedProduct.hasVariants ? selectedVariantId : undefined)
-                    }
-                  }}>
-                    {modalMode === 'snack_box' ? 'Masukkan ke Snack Box' : 'Tambah ke Keranjang'}
-                  </button>
-                  <button className="btn btn-outline" onClick={() => setSelectedProduct(null)}>Batal</button>
-                </div>
+                <button
+                  className={`btn flex-1 justify-between px-4 ${modalMode === "snack_box" ? "btn-accent" : ""}`}
+                  onClick={() => {
+                    if (!selectedProduct) return
+                    const vId = selectedProduct.hasVariants ? selectedVariantId : undefined
+                    if (modalMode === "snack_box") addToDraftBox(selectedProduct, vId, modalQty)
+                    else addToNormalCart(selectedProduct, vId, modalQty)
+                  }}
+                >
+                  <span>{modalMode === "snack_box" ? "Masukkan box" : "Tambah"}</span>
+                  <span className="font-extrabold">{formatPrice(modalUnitPrice * modalQty)}</span>
+                </button>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
-      {/* Done Lets Pack It - Details Modal */}
-      {showBoxDetailsModal && (
-        <div className="modal-overlay" onClick={() => setShowBoxDetailsModal(false)}>
-          <div className="modal-content details-modal" onClick={e => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setShowBoxDetailsModal(false)}>&times;</button>
-            <h3 className="modal-heading">Detail Pengemasan Paket</h3>
-            <div className="form-group">
-              <label className="form-label">Jumlah Paket (Box) yang dipesan</label>
-              <QuantitySelector 
-                value={boxQty} 
-                onChange={(val) => setBoxQty(val)}
-              />
-              <span className="form-help">Silakan ketik manual jumlah pesanan atau gunakan tombol +/-</span>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Pilihan Kemasan</label>
-              <select className="form-input" value={boxPkg} onChange={e => setBoxPkg(e.target.value)}>
-                <option value="Box">Box Karton</option>
-                <option value="Kertas Snack">Kertas Snack</option>
-                <option value="Tas Snack">Tas Snack</option>
-              </select>
-            </div>
-            <div className="modal-action-buttons">
-              <button className="btn btn-outline" onClick={() => setShowBoxDetailsModal(false)}>Batal</button>
-              <button className="btn" onClick={confirmSnackBox}>Simpan ke Keranjang</button>
-            </div>
+      {/* ── Floating bar (HP & desktop) ─────── */}
+      {(() => {
+        const building = isBuildingBox && draftCount > 0
+        const show = !cartOpen && (building || grandTotalItems > 0)
+        return (
+          <div
+            className={`fixed inset-x-0 bottom-0 z-[90] px-3 pb-3 sm:pb-5 pointer-events-none transition-all duration-500 ease-smooth
+            ${show ? "translate-y-0 opacity-100" : "translate-y-[140%] opacity-0"}`}
+          >
+            <button
+              onClick={() => (building ? scrollToId("builder", 130) : openCart())}
+              className="pointer-events-auto mx-auto flex w-full max-w-lg items-center gap-3 rounded-xl bg-brand-950/95 backdrop-blur-xl p-1.5 pl-4 text-white shadow-pop hover:bg-brand-950 transition-colors group"
+            >
+              <span className="flex-1 text-left leading-tight">
+                <span className="block text-[11px] text-white/60">{building ? `Isi box · ${draftCount} item` : `${grandTotalItems} item di keranjang`}</span>
+                <span className="block text-[14px] font-extrabold">{building ? `${formatPrice(draftBoxTotalPrice)} / box` : formatPrice(grandTotalPrice)}</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 h-10 px-4 rounded-lg bg-accent text-brand-950 text-[13px] font-bold">
+                {building ? "Atur kemasan" : "Checkout"}
+                <ArrowRight size={15} className="transition-transform group-hover:translate-x-0.5" />
+              </span>
+            </button>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
-      {/* Floating Cart (Bottom) */}
-      <div className={`floating-cart ${grandTotalItems > 0 ? 'visible' : ''} ${cartAnimating ? 'cart-bounce' : ''}`}>
-        <div className="floating-cart-inner">
-          <div className="cart-summary-text">
+      {/* ── Cart drawer ─────────────────────── */}
+      <Drawer
+        open={cartOpen}
+        onClose={() => setCartOpen(false)}
+        title={
+          checkoutStep === "cart" ? (
+            <span>Keranjang <span className="text-ink-faded font-semibold">({grandTotalItems})</span></span>
+          ) : (
+            <button onClick={() => setCheckoutStep("cart")} className="hover:text-brand-700 transition-colors">
+              ← Data Pengiriman
+            </button>
+          )
+        }
+        footer={
+          grandTotalItems > 0 ? (
             <div>
-              <div className="cart-label">Total Item</div>
-              <div className="cart-value-items">{grandTotalItems} Item</div>
-            </div>
-            <div style={{ marginLeft: '24px' }}>
-              <div className="cart-label">Sub Total</div>
-              <div className="cart-value-price">{formatPrice(grandTotalPrice)}</div>
-            </div>
-          </div>
-          <button className="flex items-center gap-2 px-6 py-3 bg-white text-ink border border-hairline rounded-sm font-bold shadow-sm hover:bg-surface-1 transition-colors" onClick={() => setShowCheckout(true)}>
-            <ShoppingCart size={18} strokeWidth={2.5} />
-            Checkout Sekarang
-          </button>
-        </div>
-      </div>
-
-      {/* Grand Checkout Modal */}
-      {showCheckout && (
-        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowCheckout(false)}>
-          <div className="bg-white rounded-aws-card w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-hairline shadow-aws-elevation-1 p-6 relative" onClick={e => e.stopPropagation()}>
-            <button className="absolute top-6 right-6 text-ink-faded hover:text-primary transition-colors" onClick={() => setShowCheckout(false)}><X size={24} /></button>
-            <h2 className="text-xl font-bold text-ink border-b border-hairline pb-4 mb-6">Finalisasi Pesanan</h2>
-            
-            {/* Interactive Cart Summary inside Checkout Screen */}
-            <div className="checkout-summary-container">
-              <h3 className="text-sm font-semibold text-ink-faded uppercase tracking-wider mb-4">Ringkasan Pesanan Anda</h3>
-              
-              {Object.keys(normalCart).length === 0 && snackBoxes.length === 0 ? (
-                <p style={{ color: 'var(--text-secondary)', padding: '16px 0' }}>Keranjang belanja kosong.</p>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[13px] text-ink-faded">Total</span>
+                <span className="text-lg font-extrabold text-brand-800">{formatPrice(grandTotalPrice)}</span>
+              </div>
+              {checkoutStep === "cart" ? (
+                <button className="btn w-full h-11" onClick={() => setCheckoutStep("form")}>
+                  Lanjut ke Pengiriman
+                </button>
               ) : (
-                <>
-                  {/* Satuan Items list */}
-                  {Object.keys(normalCart).length > 0 && (
-                    <div className="mb-6">
-                      <div className="font-bold text-ink mb-3">Produk Satuan</div>
-                      {Object.entries(normalCart).map(([id, qty]) => {
-                        const info = getCartItemInfo(id)
-                        if (!info || !info.product) return null
-                        return (
-                          <div key={id} className="summary-item-row">
-                            <div className="summary-item-info">
-                              <span className="font-semibold text-sm text-ink block">{info.name}</span>
-                              <span className="text-xs text-primary font-bold">{formatPrice(info.price)}</span>
-                            </div>
-                            <div className="summary-item-qty">
-                              <QuantitySelector 
-                                value={qty} 
-                                onChange={(qty) => updateNormalCartQty(id, qty)}
-                                onRemove={() => updateNormalCartQty(id, 0)}
-                              />
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-
-                  {/* Snack Boxes packages list */}
-                  {snackBoxes.length > 0 && (
-                    <div className="mb-6">
-                      <div className="font-bold text-ink mb-3">Paket Snack Box</div>
-                      {snackBoxes.map((box, index) => {
-                        const boxPrice = Object.entries(box.items).reduce((sum, [id, qty]) => {
-                          const p = initialProducts.find(p => p.id === id)
-                          return sum + (p?.price || 0) * qty
-                        }, 0)
-                        return (
-                          <div key={index} className="summary-package-card">
-                            <div className="flex items-start justify-between mb-3 border-b border-hairline pb-2">
-                              <div>
-                                <span className="font-bold text-ink block">📦 Paket {index + 1}</span>
-                                <span className="text-xs text-ink-faded">({box.pkg})</span>
-                              </div>
-                              <button className="text-ink-faded hover:text-red-500 transition-colors" onClick={() => setSnackBoxes(prev => prev.filter((_, i) => i !== index))} aria-label="Hapus paket"><X size={18} /></button>
-                            </div>
-                            <div className="package-items-list">
-                              {Object.entries(box.items).map(([id, qty]) => {
-                                const p = initialProducts.find(p => p.id === id)
-                                return p ? (
-                                  <div key={id} className="package-item-detail">
-                                    - {p.name} (x{qty})
-                                  </div>
-                                ) : null
-                              })}
-                            </div>
-                            <div className="flex items-center justify-between mt-4 pt-3 border-t border-hairline">
-                              <span className="font-bold text-primary text-sm">Subtotal: {formatPrice(boxPrice * box.qty)}</span>
-                              <QuantitySelector 
-                                value={box.qty} 
-                                onChange={(val) => setSnackBoxes(prev => prev.map((b, i) => i === index ? { ...b, qty: val } : b))}
-                              />
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-
-                  <div className="flex justify-between items-center py-4 text-lg font-bold text-ink border-t border-hairline mt-6">
-                    <span>Total Keseluruhan</span>
-                    <span className="total-val">{formatPrice(grandTotalPrice)}</span>
-                  </div>
-                </>
+                <button className="btn btn-wa w-full h-11" onClick={handleCheckout}>
+                  Kirim Pesanan via WhatsApp
+                </button>
               )}
             </div>
+          ) : undefined
+        }
+      >
+        {grandTotalItems === 0 ? (
+          <div className="flex flex-col items-center justify-center text-center h-full px-8 py-16">
+            <h3 className="text-base font-bold text-ink">Keranjang masih kosong</h3>
+            <p className="text-[13px] text-ink-faded mt-1">Pilih menu favorit atau racik snack box Anda.</p>
+            <button
+              className="btn mt-5"
+              onClick={() => {
+                setCartOpen(false)
+                setTimeout(() => scrollToId("menu", 130), 350)
+              }}
+            >
+              Lihat Menu
+            </button>
+          </div>
+        ) : checkoutStep === "cart" ? (
+          <div key="cart" className="p-4 sm:p-5 space-y-5 animate-fade-up">
+            {Object.keys(normalCart).length > 0 && (
+              <section>
+                <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-faded mb-2">Produk satuan</div>
+                <ul className="divide-y divide-hairline">
+                  {Object.entries(normalCart).map(([key, qty]) => {
+                    const info = getCartItemInfo(key)
+                    if (!info) return null
+                    return (
+                      <li key={key} className="flex items-center gap-3 py-2.5">
+                        <Img src={info.product.imageUrl} lazy={false} className="h-12 w-12 rounded-lg object-cover shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[13px] font-semibold text-ink line-clamp-1">{info.product.name}</div>
+                          {info.variant && <div className="text-[11.5px] text-ink-faded">{info.variant.name}</div>}
+                          <div className="text-[13px] font-bold text-brand-800">{formatPrice(info.price * qty)}</div>
+                        </div>
+                        <div className="w-[104px] shrink-0">
+                          <QuantitySelector value={qty} size="sm" full onChange={(q) => updateNormalCartQty(key, q)} onRemove={() => updateNormalCartQty(key, 0)} />
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </section>
+            )}
 
-            {/* Delivery Form */}
-            <div className="delivery-form" style={{ marginTop: '24px' }}>
-              <h3 className="text-sm font-semibold text-ink-faded uppercase tracking-wider mb-4">Data Pengiriman</h3>
-              
-              <div className="form-group">
-                <label className="form-label">Nama Pemesan</label>
-                <input className="form-input" value={customerInfo.name} onChange={e => setCustomerInfo({...customerInfo, name: e.target.value})} placeholder="Masukkan nama lengkap Anda" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Alamat Lengkap Pengiriman</label>
-                <textarea className="form-input" rows={3} value={customerInfo.address} onChange={e => setCustomerInfo({...customerInfo, address: e.target.value})} placeholder="Alamat lengkap (RT/RW, Kelurahan, Kecamatan, Kota)" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Tanggal Pengiriman</label>
-                <input type="date" className="form-input" value={customerInfo.date} onChange={e => setCustomerInfo({...customerInfo, date: e.target.value})} />
-              </div>
+            {snackBoxes.length > 0 && (
+              <section>
+                <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-faded mb-2">Paket snack box</div>
+                <ul className="space-y-2">
+                  {snackBoxes.map((box, index) => {
+                    const unit = boxUnitPrice(box.items)
+                    const open = expandedBox === index
+                    return (
+                      <li key={index} className="rounded-lg border border-hairline overflow-hidden">
+                        <div className="flex items-center justify-between gap-3 px-3 pt-3">
+                          <div className="min-w-0">
+                            <div className="text-[13px] font-bold text-ink">Paket {index + 1}</div>
+                            <div className="text-[11.5px] text-ink-faded">{box.pkg} · {formatPrice(unit)}/box</div>
+                          </div>
+                          <button
+                            className="text-[12px] font-semibold text-ink-faded hover:text-red-600 transition-colors"
+                            onClick={() => setSnackBoxes((prev) => prev.filter((_, i) => i !== index))}
+                          >
+                            Hapus
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => setExpandedBox(open ? null : index)}
+                          className="mx-3 mt-1.5 flex items-center gap-1 text-[12px] font-semibold text-brand-700"
+                        >
+                          {open ? "Sembunyikan isi" : `Lihat isi (${Object.keys(box.items).length})`}
+                          <ChevronDown size={13} className={`transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
+                        </button>
+                        <div className={`grid transition-all duration-500 ease-smooth ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+                          <div className="overflow-hidden">
+                            <ul className="px-3 pt-2 space-y-0.5 text-[12.5px] text-ink-body">
+                              {Object.entries(box.items).map(([key, qty]) => {
+                                const info = getCartItemInfo(key)
+                                return info ? <li key={key}>{qty}× {info.name}</li> : null
+                              })}
+                            </ul>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 p-3">
+                          <span className="text-[13px] font-bold text-brand-800">{formatPrice(unit * box.qty)}</span>
+                          <div className="w-[104px]">
+                            <QuantitySelector
+                              value={box.qty}
+                              size="sm"
+                              full
+                              onChange={(val) => setSnackBoxes((prev) => prev.map((b, i) => (i === index ? { ...b, qty: val } : b)))}
+                            />
+                          </div>
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </section>
+            )}
+
+            <button
+              onClick={() => {
+                setCartOpen(false)
+                setIsBuildingBox(true)
+                setTimeout(() => scrollToId("menu", 130), 350)
+              }}
+              className="w-full h-10 rounded-lg border border-dashed border-brand-300 text-[13px] font-semibold text-brand-700 hover:bg-brand-50 transition-colors"
+            >
+              + Racik paket snack box baru
+            </button>
+          </div>
+        ) : (
+          <div key="form" className="p-4 sm:p-5 animate-fade-up">
+            <p className="text-[13px] text-ink-faded mb-5">Isi data berikut, lalu pesanan dikirim ke admin lewat WhatsApp.</p>
+            <div className="form-group">
+              <label className="form-label">Nama pemesan</label>
+              <input className="form-input" value={customerInfo.name} onChange={(e) => setCustomerInfo({ ...customerInfo, name: e.target.value })} placeholder="Nama lengkap Anda" />
             </div>
-            
-            <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-hairline">
-              <button className="btn btn-outline" onClick={() => setShowCheckout(false)}>Kembali</button>
-              <button className="px-6 py-2.5 bg-[#25D366] text-white rounded-aws-pill font-semibold shadow-sm hover:bg-[#1DA851] transition-colors flex items-center" onClick={handleCheckout}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" className="mr-2 inline-block">
-                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
-                </svg>
-                Kirim Pesanan (WhatsApp)
-              </button>
+            <div className="form-group">
+              <label className="form-label">Alamat pengiriman</label>
+              <textarea
+                className="form-input"
+                rows={3}
+                value={customerInfo.address}
+                onChange={(e) => setCustomerInfo({ ...customerInfo, address: e.target.value })}
+                placeholder="RT/RW, Kelurahan, Kecamatan, Kota"
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Tanggal pengiriman</label>
+              <input type="date" min={todayStr} className="form-input" value={customerInfo.date} onChange={(e) => setCustomerInfo({ ...customerInfo, date: e.target.value })} />
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </Drawer>
     </>
   )
 }
-

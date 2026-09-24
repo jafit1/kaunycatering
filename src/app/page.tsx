@@ -1,191 +1,202 @@
 import prisma from "@/lib/prisma"
 import Catalog from "./Catalog"
-import { CheckCircle2, ChevronRight, Clock, MapPin, MessageSquare, Package, Shield, Star, Users } from "lucide-react"
+import { Reveal } from "./ui"
+import { ArrowRight } from "lucide-react"
 
 export default async function Home() {
-  const products = await prisma.product.findMany({
-    include: { categories: true, variants: true },
-    orderBy: { name: 'asc' }
-  })
-  const settings = await prisma.setting.findMany()
-  const getSetting = (key: string) => settings.find((s: any) => s.key === key)?.value || ''
-  
-  const waNumber = getSetting('wa_number') || '6282324793627'
-  const storeName = getSetting('store_name') || 'Kauny Catering'
-  const storeTagline = getSetting('store_tagline') || 'Layanan Katering Kelas Enterprise untuk Setiap Acara Anda.'
-  const storeAddress = getSetting('store_address') || 'Kota Anda, Indonesia'
-  const storeHours = getSetting('store_hours') || 'Senin – Sabtu: 07.00 – 20.00\nMinggu: 08.00 – 17.00'
-  const storeInstagram = getSetting('store_instagram') || '@kaunycatering'
+  const [products, settings] = await Promise.all([
+    prisma.product.findMany({
+      include: { categories: true, variants: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.setting.findMany(),
+  ])
+  const getSetting = (key: string) => settings.find((s: { key: string; value: string }) => s.key === key)?.value || ""
+
+  const waNumber = getSetting("wa_number") || "6282324793627"
+  const storeName = getSetting("store_name") || "Kauny Catering"
+  const storeTagline = getSetting("store_tagline") || "Layanan Katering Kelas Enterprise untuk Setiap Acara Anda."
+  const storeAddress = getSetting("store_address") || "Kota Anda, Indonesia"
+  const storeHours = getSetting("store_hours") || "Senin – Sabtu: 07.00 – 20.00\nMinggu: 08.00 – 17.00"
+  const storeInstagram = getSetting("store_instagram") || "@kaunycatering"
+
+  const services = [
+    { title: "Snack Box", desc: "Paket snack hemat untuk seminar, rapat, dan gathering dengan varian modern & tradisional." },
+    { title: "Prasmanan & Buffet", desc: "Sajian prasmanan premium dengan dekorasi elegan dan staf pelayan profesional." },
+    { title: "Catering Pernikahan", desc: "Menu istimewa untuk momen terpenting dalam hidup Anda. Konsultasi menu gratis." },
+    { title: "Hampers & Hantaran", desc: "Kirim kebahagiaan melalui paket hampers eksklusif dengan kemasan kustom." },
+  ]
+
+  const stats = [
+    { value: "500+", label: "Pelanggan" },
+    { value: "50+", label: "Menu pilihan" },
+    { value: "4.9/5", label: "Rating" },
+    { value: "100%", label: "Halal" },
+  ]
 
   return (
-    <>
-      {/* ── HERO ──────────────────────────────── */}
-      <section className="pt-24 pb-16 px-4 md:px-8 max-w-7xl mx-auto">
-        <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-20">
-          {/* Left Text */}
-          <div className="flex-1 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-surface-1 border border-hairline rounded-sm text-xs font-mono text-ink-body mb-6">
-              <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-              Catering Enterprise Edition
-            </div>
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium text-ink leading-tight tracking-tight mb-6">
-              Layanan Katering Terpercaya untuk Skala Besar & Kecil
+    <div id="top">
+      {/* ── HERO ─────────────────────────────────── */}
+      <section className="container-x pt-3 sm:pt-6">
+        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-brand-900 text-white animate-fade-up">
+          {/* HP: foto jadi latar; desktop: foto di kanan */}
+          <div className="absolute inset-0 md:left-auto md:w-[46%]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="https://images.unsplash.com/photo-1555244162-803834f70033?auto=format&fit=crop&w=1100&q=80"
+              alt=""
+              className="h-full w-full object-cover hero-zoom"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-brand-950 via-brand-950/75 to-brand-950/30 md:bg-gradient-to-r md:from-brand-900 md:via-brand-900/40 md:to-transparent" />
+          </div>
+          <div className="absolute inset-0 hero-dots opacity-50 md:w-[60%]" />
+
+          <div className="relative px-5 sm:px-10 lg:px-14 pt-28 pb-6 sm:pt-32 md:py-16 lg:py-20 md:max-w-[58%]">
+            <span className="inline-block text-[11px] font-semibold uppercase tracking-[0.14em] text-accent animate-fade-up" style={{ animationDelay: "120ms" }}>
+              Katering terpercaya · 100% halal
+            </span>
+            <h1 className="mt-2 sm:mt-3 text-[26px] leading-[1.18] sm:text-4xl lg:text-[46px] font-extrabold tracking-tight text-balance animate-fade-up" style={{ animationDelay: "200ms" }}>
+              Sajian <span className="text-accent">lezat</span> untuk setiap acara Anda
             </h1>
-            <p className="text-lg md:text-xl text-ink-body leading-relaxed mb-8 max-w-xl">
-              Platform pemesanan katering instan dengan kapasitas tinggi, bahan segar terkurasi, dan pengiriman terjamin. Dibangun untuk kebutuhan personal hingga enterprise.
+            <p className="mt-3 text-[13px] sm:text-[15px] text-white/75 leading-relaxed max-w-md animate-fade-up" style={{ animationDelay: "280ms" }}>
+              Katering, snack box, dan prasmanan dengan bahan segar — pesan mudah langsung lewat WhatsApp.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <a href="#menu" className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-primary text-white rounded-aws-pill font-bold hover:bg-primary-hover transition-colors shadow-aws-elevation-1">
+            <div className="mt-5 sm:mt-7 flex gap-2.5 animate-fade-up" style={{ animationDelay: "360ms" }}>
+              <a href="#menu" className="btn btn-accent group">
                 Pesan Sekarang
-                <ChevronRight size={18} strokeWidth={2} />
+                <ArrowRight size={15} className="transition-transform duration-300 group-hover:translate-x-1" />
               </a>
-              <a href="#about" className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white text-ink border border-hairline rounded-aws-pill font-semibold hover:bg-surface-1 transition-colors">
-                Pelajari Lebih Lanjut
+              <a href="#promo" className="btn bg-white/10 border border-white/20 hover:bg-white/20 backdrop-blur">
+                Lihat Layanan
               </a>
-            </div>
-          </div>
-          
-          {/* Right Visual (AWS Thumbnail Card Style) */}
-          <div className="flex-1 w-full max-w-lg">
-            <div className="relative rounded-aws-card overflow-hidden border border-hairline shadow-aws-elevation-1 group">
-              {/* Subtle dynamic background gradient on hover */}
-              <div className="absolute inset-0 bg-gradient-to-br from-transparent to-black/10 group-hover:to-black/30 transition-all duration-500 z-10"></div>
-              <img 
-                src="https://images.unsplash.com/photo-1555244162-803834f70033?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" 
-                alt="Kauny Catering Spread" 
-                className="w-full h-[400px] object-cover transition-transform duration-700 group-hover:scale-105"
-              />
-              <div className="absolute bottom-6 left-6 right-6 z-20 bg-white/95 backdrop-blur-sm border border-hairline p-4 rounded-aws-card shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-xs font-bold text-primary uppercase tracking-wider mb-1">Featured Service</div>
-                    <div className="font-semibold text-ink">Premium Buffet Package</div>
-                  </div>
-                  <ChevronRight size={20} className="text-ink-faded" />
-                </div>
-              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── METRICS / LOGOS ───────────────────── */}
-      <section className="border-y border-hairline bg-surface-1 py-10">
-        <div className="max-w-7xl mx-auto px-4 md:px-8 flex flex-wrap justify-center gap-8 md:gap-16 items-center text-ink-body">
-          <div className="text-sm font-semibold tracking-wide uppercase text-ink-faded w-full text-center mb-2">Dipercaya oleh berbagai instansi & keluarga</div>
-          <div className="flex items-center gap-2"><Users size={24} strokeWidth={1.5} className="text-primary"/> <span className="font-semibold text-lg">500+ Pelanggan</span></div>
-          <div className="flex items-center gap-2"><Package size={24} strokeWidth={1.5} className="text-primary"/> <span className="font-semibold text-lg">50+ Menu Pilihan</span></div>
-          <div className="flex items-center gap-2"><Star size={24} strokeWidth={1.5} className="text-primary"/> <span className="font-semibold text-lg">Rating 4.9/5</span></div>
-          <div className="flex items-center gap-2"><Shield size={24} strokeWidth={1.5} className="text-primary"/> <span className="font-semibold text-lg">100% Halal</span></div>
-        </div>
+      {/* ── STATS ─────────────────────────────────── */}
+      <section className="container-x mt-3 sm:mt-4">
+        <Reveal className="grid grid-cols-4 rounded-xl bg-surface-1 divide-x divide-hairline">
+          {stats.map((s) => (
+            <div key={s.label} className="px-2 py-3 sm:py-5 text-center">
+              <div className="text-[15px] sm:text-2xl font-extrabold text-brand-900">{s.value}</div>
+              <div className="text-[10.5px] sm:text-xs text-ink-faded mt-0.5">{s.label}</div>
+            </div>
+          ))}
+        </Reveal>
       </section>
 
-      {/* ── FEATURED SERVICES (4-Up Grid) ─────── */}
-      <section id="promo" className="py-20 px-4 md:px-8 max-w-7xl mx-auto">
-        <h2 className="text-3xl font-medium text-ink tracking-tight mb-2">Layanan Katering Terpadu</h2>
-        <p className="text-ink-body mb-12 max-w-2xl">Solusi lengkap untuk segala kebutuhan konsumsi acara Anda, mulai dari rapat kecil hingga perhelatan besar.</p>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {[
-            { icon: <Package size={24} strokeWidth={1.5} />, title: "Snack Box Enterprise", desc: "Paket snack hemat untuk seminar, rapat, dan gathering dengan varian modern & tradisional." },
-            { icon: <Users size={24} strokeWidth={1.5} />, title: "Prasmanan & Buffet", desc: "Sajian prasmanan premium dengan dekorasi elegan dan staf pelayan profesional." },
-            { icon: <CheckCircle2 size={24} strokeWidth={1.5} />, title: "Catering Pernikahan", desc: "Menu istimewa untuk momen terpenting dalam hidup Anda. Konsultasi menu gratis." },
-            { icon: <MessageSquare size={24} strokeWidth={1.5} />, title: "Hampers & Hantaran", desc: "Kirim kebahagiaan melalui paket hampers eksklusif dengan kemasan kustom." }
-          ].map((feature, i) => (
-            <div key={i} className="bg-white border border-hairline p-6 rounded-aws-card group hover:bg-surface-1 transition-colors duration-300">
-              <div className="w-12 h-12 bg-surface-1 rounded-sm flex items-center justify-center text-primary mb-6 group-hover:bg-white transition-colors border border-hairline">
-                {feature.icon}
-              </div>
-              <h3 className="font-bold text-ink mb-2">{feature.title}</h3>
-              <p className="text-sm text-ink-body leading-relaxed mb-6">{feature.desc}</p>
-              <a href="#menu" className="text-primary text-sm font-semibold hover:underline inline-flex items-center gap-1">
-                Pelajari selengkapnya <ChevronRight size={16} strokeWidth={2} />
+      {/* ── SERVICES ─────────────────────────────── */}
+      <section id="promo" className="container-x pt-12 sm:pt-20 scroll-mt-32">
+        <Reveal className="mb-5 sm:mb-8">
+          <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand-600 mb-1.5">Layanan kami</div>
+          <h2 className="text-xl sm:text-3xl font-extrabold text-ink tracking-tight">Katering untuk semua momen</h2>
+        </Reveal>
+
+        {/* HP: geser horizontal; desktop: grid */}
+        <div className="flex sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory -mx-4 px-4 sm:mx-0 sm:px-0">
+          {services.map((f, i) => (
+            <Reveal key={f.title} delay={i * 80} className="shrink-0 w-[72%] sm:w-auto snap-start">
+              <a href="#menu" className="group flex h-full flex-col rounded-xl bg-surface-1 p-5 transition-all duration-500 ease-smooth hover:bg-white hover:shadow-lift hover:-translate-y-1">
+                <span className="text-xs font-bold text-brand-500">0{i + 1}</span>
+                <h3 className="mt-2 font-bold text-ink text-[15px]">{f.title}</h3>
+                <p className="mt-1.5 text-[13px] text-ink-faded leading-relaxed flex-1">{f.desc}</p>
+                <span className="mt-4 text-[13px] font-semibold text-brand-700 group-hover:underline underline-offset-4">Lihat menu →</span>
               </a>
-            </div>
+            </Reveal>
           ))}
         </div>
       </section>
 
-      {/* ── MENU / CATALOG ────────────────────── */}
-      <section id="menu" className="py-20 px-4 md:px-8 bg-surface-1 border-y border-hairline">
-        <div className="max-w-7xl mx-auto">
-          <h2 className="text-3xl font-medium text-ink tracking-tight mb-2">Eksplorasi Menu</h2>
-          <p className="text-ink-body mb-8 max-w-2xl">Jelajahi berbagai pilihan menu satuan atau bangun paket Snack Box kustom Anda sendiri.</p>
-          <Catalog initialProducts={products} waNumber={waNumber} />
-        </div>
+      {/* ── CATALOG ───────────────────────────────── */}
+      <section id="menu" className="container-x pt-12 sm:pt-20 pb-8 scroll-mt-32">
+        <Catalog initialProducts={products} waNumber={waNumber} />
       </section>
 
-      {/* ── STORE INFO / FOOTER PREVIEW ───────── */}
-      <section id="store" className="py-20 px-4 md:px-8 max-w-7xl mx-auto">
-        <div className="grid lg:grid-cols-2 gap-16 items-center">
-          <div>
-            <h2 className="text-3xl font-medium text-ink tracking-tight mb-6">Infrastruktur & Layanan Kami</h2>
-            <p className="text-lg text-ink-body mb-8 leading-relaxed">
-              Dapur utama kami dilengkapi standar kebersihan tinggi untuk memproses pesanan hingga ribuan porsi per hari. Kami menjamin setiap makanan tiba tepat waktu.
-            </p>
-            <div className="space-y-6">
-              <div className="flex gap-4 items-start">
-                <MapPin size={24} strokeWidth={1.5} className="text-primary shrink-0 mt-1" />
-                <div>
-                  <div className="font-semibold text-ink">Lokasi Dapur Pusat</div>
-                  <div className="text-ink-body text-sm mt-1">{storeAddress}</div>
+      {/* ── STORE INFO ───────────────────────────── */}
+      <section id="store" className="container-x pt-8 pb-28 sm:pb-24 scroll-mt-32">
+        <Reveal>
+          <div className="grid lg:grid-cols-2 gap-3 sm:gap-5 items-stretch">
+            <div className="rounded-2xl bg-surface-1 p-5 sm:p-10 flex flex-col">
+              <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand-600 mb-1.5">Info toko</div>
+              <h2 className="text-xl sm:text-3xl font-extrabold text-ink tracking-tight">Dapur kami siap melayani</h2>
+              <p className="mt-2.5 text-[13px] sm:text-sm text-ink-faded leading-relaxed">
+                Dapur utama kami dilengkapi standar kebersihan tinggi untuk memproses pesanan hingga ribuan porsi per hari. Kami menjamin setiap makanan tiba tepat waktu.
+              </p>
+
+              <dl className="mt-6 grid sm:grid-cols-2 gap-3">
+                <div className="rounded-xl bg-white p-4">
+                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-faded">Lokasi dapur</dt>
+                  <dd className="mt-1 text-[13px] font-semibold text-ink leading-relaxed">{storeAddress}</dd>
                 </div>
-              </div>
-              <div className="flex gap-4 items-start">
-                <Clock size={24} strokeWidth={1.5} className="text-primary shrink-0 mt-1" />
-                <div>
-                  <div className="font-semibold text-ink">Jam Operasional</div>
-                  <div className="text-ink-body text-sm mt-1 whitespace-pre-line">{storeHours}</div>
+                <div className="rounded-xl bg-white p-4">
+                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-faded">Jam operasional</dt>
+                  <dd className="mt-1 text-[13px] font-semibold text-ink leading-relaxed whitespace-pre-line">{storeHours}</dd>
                 </div>
+              </dl>
+
+              <div className="mt-6 flex flex-wrap gap-2.5">
+                <a href={`https://wa.me/${waNumber}`} target="_blank" rel="noopener noreferrer" className="btn btn-wa">
+                  Hubungi via WhatsApp
+                </a>
+                <a href={`https://instagram.com/${storeInstagram.replace("@", "")}`} target="_blank" rel="noopener noreferrer" className="btn btn-outline">
+                  Instagram {storeInstagram}
+                </a>
               </div>
             </div>
-            <div className="mt-10">
-              <a href={`https://wa.me/${waNumber}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-6 py-3 bg-white text-ink border border-hairline rounded-aws-pill font-semibold hover:bg-surface-1 transition-colors">
-                <MessageSquare size={18} strokeWidth={2} className="text-green-600" />
-                Hubungi via WhatsApp
-              </a>
+
+            <div className="relative min-h-[220px] sm:min-h-[280px] rounded-2xl overflow-hidden group">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=1000&q=80"
+                alt="Dapur Kauny Catering"
+                loading="lazy"
+                className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1.6s] ease-smooth group-hover:scale-105"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-brand-950/80 via-brand-950/10 to-transparent" />
+              <div className="absolute left-5 right-5 bottom-5 sm:left-8 sm:bottom-8 text-white">
+                <div className="text-[11px] font-semibold text-accent mb-1">Siap untuk acara Anda</div>
+                <div className="text-lg sm:text-2xl font-extrabold leading-snug max-w-sm">Ribuan porsi per hari, tiba tepat waktu.</div>
+              </div>
             </div>
           </div>
-          <div className="relative rounded-aws-card overflow-hidden border border-hairline shadow-sm h-80 lg:h-[450px]">
-            <img src="https://images.unsplash.com/photo-1555939594-58d7cb561ad1?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Kitchen Infrastructure" className="w-full h-full object-cover" />
-          </div>
-        </div>
+        </Reveal>
       </section>
 
-      {/* ── FOOTER ────────────────────────────── */}
-      <footer className="bg-[#0f141a] text-white pt-16 pb-8 px-4 md:px-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-16">
-            <div className="md:col-span-2">
-              <div className="text-2xl font-bold mb-4">{storeName}</div>
-              <p className="text-gray-400 text-sm max-w-md leading-relaxed">{storeTagline}</p>
+      {/* ── FOOTER ───────────────────────────────── */}
+      <footer className="bg-brand-950 text-white">
+        <div className="container-x pt-12 pb-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-10">
+            <div className="col-span-2">
+              <div className="text-lg font-extrabold tracking-tight">{storeName}</div>
+              <p className="mt-3 text-[13px] text-white/60 max-w-sm leading-relaxed">{storeTagline}</p>
             </div>
             <div>
-              <div className="font-bold mb-4 text-gray-200">Layanan Khusus</div>
-              <ul className="space-y-3 text-sm text-gray-400">
-                <li><a href="#" className="hover:text-white transition-colors">Snack Box Corporate</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Wedding Catering</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Prasmanan Premium</a></li>
+              <div className="font-bold mb-3 text-white/90 text-[13px]">Layanan</div>
+              <ul className="space-y-2.5 text-[13px] text-white/55">
+                <li><a href="#menu" className="hover:text-accent transition-colors">Snack Box Corporate</a></li>
+                <li><a href="#promo" className="hover:text-accent transition-colors">Wedding Catering</a></li>
+                <li><a href="#promo" className="hover:text-accent transition-colors">Prasmanan Premium</a></li>
               </ul>
             </div>
             <div>
-              <div className="font-bold mb-4 text-gray-200">Kontak</div>
-              <ul className="space-y-3 text-sm text-gray-400">
-                <li><a href={`https://wa.me/${waNumber}`} className="hover:text-white transition-colors">WhatsApp Order</a></li>
-                <li><a href={`https://instagram.com/${storeInstagram.replace('@','')}`} className="hover:text-white transition-colors">Instagram {storeInstagram}</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Bantuan & FAQ</a></li>
+              <div className="font-bold mb-3 text-white/90 text-[13px]">Kontak</div>
+              <ul className="space-y-2.5 text-[13px] text-white/55">
+                <li><a href={`https://wa.me/${waNumber}`} className="hover:text-accent transition-colors">WhatsApp Order</a></li>
+                <li><a href={`https://instagram.com/${storeInstagram.replace("@", "")}`} className="hover:text-accent transition-colors">Instagram {storeInstagram}</a></li>
+                <li><a href="#store" className="hover:text-accent transition-colors">Jam &amp; Lokasi</a></li>
               </ul>
             </div>
           </div>
-          <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center text-xs text-gray-500">
+          <div className="border-t border-white/10 pt-6 flex flex-col sm:flex-row justify-between items-center gap-3 text-[11.5px] text-white/40">
             <div>&copy; {new Date().getFullYear()} {storeName}. All rights reserved.</div>
-            <div className="flex gap-4 mt-4 md:mt-0">
-              <a href="#" className="hover:text-gray-300 transition-colors">Privasi</a>
-              <a href="#" className="hover:text-gray-300 transition-colors">Syarat & Ketentuan</a>
+            <div className="flex gap-5">
+              <a href="#" className="hover:text-white/80 transition-colors">Privasi</a>
+              <a href="#" className="hover:text-white/80 transition-colors">Syarat &amp; Ketentuan</a>
             </div>
           </div>
         </div>
       </footer>
-    </>
+    </div>
   )
 }
