@@ -103,3 +103,18 @@ export async function updateSetting(key: string, value: string) {
   revalidatePath('/admin')
   revalidatePath('/')
 }
+
+/** Simpan banyak pengaturan sekaligus (dipakai tab Pengaturan Web) */
+export async function updateSettings(entries: { key: string; value: string }[]) {
+  await prisma.$transaction(
+    entries.map(({ key, value }) =>
+      prisma.setting.upsert({
+        where: { key },
+        update: { value },
+        create: { key, value },
+      })
+    )
+  )
+  revalidatePath('/admin')
+  revalidatePath('/', 'layout')
+}

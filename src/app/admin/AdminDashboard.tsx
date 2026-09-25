@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { addProduct, deleteProduct, updateSetting, addCategory, deleteCategory } from "./actions"
+import { addProduct, deleteProduct, addCategory, deleteCategory } from "./actions"
+import SettingsPanel from "./SettingsPanel"
 
 type Category = { id: string, name: string }
 type Variant = { id: string, name: string, price: number }
@@ -17,17 +18,7 @@ export default function AdminDashboard({ products, categories, settings }: { pro
 
   const getSetting = (key: string) => settings.find(s => s.key === key)?.value || ''
 
-  const [storeName, setStoreName] = useState(getSetting('store_name') || 'Kauny Catering')
-  const [logoUrl, setLogoUrl] = useState(getSetting('logo_url'))
-  const [storeTagline, setStoreTagline] = useState(getSetting('store_tagline') || 'Sajian lezat untuk setiap momen spesial Anda.')
-  const [storeAddress, setStoreAddress] = useState(getSetting('store_address') || 'Kota Anda, Indonesia')
-  const [storeHours, setStoreHours] = useState(getSetting('store_hours') || 'Senin – Sabtu: 07.00 – 20.00\nMinggu: 08.00 – 17.00')
-  const [storeAbout, setStoreAbout] = useState(getSetting('store_about') || 'Kauny Catering lahir dari kecintaan kami terhadap kuliner Indonesia yang kaya rasa.')
-  const [storeInstagram, setStoreInstagram] = useState(getSetting('store_instagram') || '@kaunycatering')
-  const [waNumber, setWaNumber] = useState(getSetting('wa_number'))
-  const [adminPassword, setAdminPassword] = useState(getSetting('admin_password'))
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
+  const storeName = getSetting('store_name') || 'Kauny Catering'
 
   // Custom Toast State
   const [toast, setToast] = useState<{ message: string; visible: boolean; type: 'success' | 'error' }>({ message: '', visible: false, type: 'success' })
@@ -138,21 +129,7 @@ export default function AdminDashboard({ products, categories, settings }: { pro
     showToast('Kategori berhasil ditambahkan!', 'success')
   }
 
-  const handleSaveSettings = async () => {
-    setSaving(true)
-    await updateSetting('store_name', storeName)
-    await updateSetting('logo_url', logoUrl)
-    await updateSetting('store_tagline', storeTagline)
-    await updateSetting('store_address', storeAddress)
-    await updateSetting('store_hours', storeHours)
-    await updateSetting('store_about', storeAbout)
-    await updateSetting('store_instagram', storeInstagram)
-    await updateSetting('wa_number', waNumber)
-    await updateSetting('admin_password', adminPassword)
-    setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 3000)
-  }
+
 
   return (
     <div className="min-h-screen bg-surface-1 flex flex-col md:flex-row">
@@ -203,7 +180,7 @@ export default function AdminDashboard({ products, categories, settings }: { pro
             onClick={() => setActiveTab('pengaturan')}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-            Pengaturan Website
+            Pengaturan Web
           </button>
           
           <a href="/" target="_blank" className="flex items-center gap-3 px-4 py-3 rounded-2xl font-semibold text-sm whitespace-nowrap text-ink-body hover:bg-surface-1 transition-colors mt-auto flex-1 md:flex-none">
@@ -412,102 +389,7 @@ export default function AdminDashboard({ products, categories, settings }: { pro
         )}
 
         {/* ─── TAB: PENGATURAN ─── */}
-        {activeTab === 'pengaturan' && (
-          <div className="flex flex-col gap-6">
-            {/* Identitas Toko */}
-            <div className="bg-white rounded-3xl shadow-soft border border-hairline/70 p-5 md:p-7 animate-fade-up">
-              <SectionTitle>Identitas Toko</SectionTitle>
-              <div className="mb-4">
-                <label className="block text-sm font-semibold text-ink mb-1.5">Nama Toko / Bisnis</label>
-                <input value={storeName} onChange={e => setStoreName(e.target.value)} className="form-input" placeholder="Kauny Catering" />
-                <small className="text-ink-faded text-xs mt-1 block">Ditampilkan di header, footer, dan seluruh halaman.</small>
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-semibold text-ink mb-1.5">Tagline / Slogan</label>
-                <input value={storeTagline} onChange={e => setStoreTagline(e.target.value)} className="form-input" placeholder="Sajian lezat untuk setiap momen spesial Anda." />
-                <small className="text-ink-faded text-xs mt-1 block">Kalimat singkat yang muncul di footer.</small>
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-semibold text-ink mb-1.5">URL Logo (Opsional)</label>
-                <input value={logoUrl} onChange={e => setLogoUrl(e.target.value)} className="form-input" placeholder="https://..." />
-                <small className="text-ink-faded text-xs mt-1 block">Jika diisi, logo gambar akan menggantikan teks nama toko di header.</small>
-              </div>
-            </div>
-
-            {/* Tentang Kami */}
-            <div className="bg-white rounded-3xl shadow-soft border border-hairline/70 p-5 md:p-7 animate-fade-up">
-              <SectionTitle>Deskripsi &quot;Tentang Kami&quot;</SectionTitle>
-              <div className="mb-4">
-                <label className="block text-sm font-semibold text-ink mb-1.5">Deskripsi Toko</label>
-                <textarea
-                  value={storeAbout}
-                  onChange={e => setStoreAbout(e.target.value)}
-                  className="form-input"
-                  rows={4}
-                  placeholder="Ceritakan tentang bisnis Anda..."
-                />
-                <small className="text-ink-faded text-xs mt-1 block">Muncul di bagian &quot;Tentang Kami&quot; pada halaman utama.</small>
-              </div>
-            </div>
-
-            {/* Lokasi & Jam */}
-            <div className="bg-white rounded-3xl shadow-soft border border-hairline/70 p-5 md:p-7 animate-fade-up">
-              <SectionTitle>Lokasi & Jam Operasional</SectionTitle>
-              <div className="mb-4">
-                <label className="block text-sm font-semibold text-ink mb-1.5">Alamat Toko</label>
-                <input value={storeAddress} onChange={e => setStoreAddress(e.target.value)} className="form-input" placeholder="Jl. Contoh No. 1, Kota, Provinsi" />
-                <small className="text-ink-faded text-xs mt-1 block">Ditampilkan di bagian informasi toko.</small>
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-semibold text-ink mb-1.5">Jam Operasional</label>
-                <textarea
-                  value={storeHours}
-                  onChange={e => setStoreHours(e.target.value)}
-                  className="form-input"
-                  rows={3}
-                  placeholder={"Senin – Sabtu: 07.00 – 20.00\nMinggu: 08.00 – 17.00"}
-                />
-                <small className="text-ink-faded text-xs mt-1 block">Gunakan Enter/baris baru untuk memisahkan hari.</small>
-              </div>
-            </div>
-
-            {/* Kontak & Sosmed */}
-            <div className="bg-white rounded-3xl shadow-soft border border-hairline/70 p-5 md:p-7 animate-fade-up">
-              <SectionTitle>Kontak & Media Sosial</SectionTitle>
-              <div className="mb-4">
-                <label className="block text-sm font-semibold text-ink mb-1.5">Nomor WhatsApp Penerima Pesanan</label>
-                <input value={waNumber} onChange={e => setWaNumber(e.target.value)} className="form-input" placeholder="628xxxxxxxxxx" />
-                <small className="text-ink-faded text-xs mt-1 block">Semua pesanan pelanggan dikirim ke nomor ini. Mulai dengan 628 (tanpa + atau 0).</small>
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-semibold text-ink mb-1.5">Username Instagram</label>
-                <input value={storeInstagram} onChange={e => setStoreInstagram(e.target.value)} className="form-input" placeholder="@namatoko" />
-                <small className="text-ink-faded text-xs mt-1 block">Ditampilkan di bagian media sosial.</small>
-              </div>
-            </div>
-
-            {/* Keamanan */}
-            <div className="bg-white rounded-3xl shadow-soft border border-hairline/70 p-5 md:p-7 animate-fade-up">
-              <SectionTitle>Keamanan Admin</SectionTitle>
-              <div className="mb-4">
-                <label className="block text-sm font-semibold text-ink mb-1.5">Password Admin</label>
-                <input value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="form-input" type="password" placeholder="Masukkan password baru..." />
-                <small className="text-ink-faded text-xs mt-1 block">Kosongkan jika tidak ingin mengubah password.</small>
-              </div>
-            </div>
-
-            {/* Tombol Simpan (sticky) */}
-            <div className="sticky bottom-4 z-10">
-              <button
-                onClick={handleSaveSettings}
-                disabled={saving}
-                className={`btn w-full h-14 text-base shadow-pop ${saved ? 'btn-accent' : ''}`}
-              >
-                {saving ? 'Menyimpan...' : saved ? 'Tersimpan!' : 'Simpan Semua Pengaturan'}
-              </button>
-            </div>
-          </div>
-        )}
+        {activeTab === 'pengaturan' && <SettingsPanel settings={settings} onToast={showToast} />}
       </main>
 
       {/* Delete Confirmation Modal */}

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { ArrowRight, Check, ChevronDown, Minus, Plus, X } from "lucide-react"
-import { Drawer, Dropdown, EVT, Modal, Reveal, emit, scrollToId, useEvent } from "./ui"
+import { DatePicker, Drawer, Dropdown, EVT, Modal, TimePicker, emit, formatTanggal, scrollToId, toISODate, useEvent } from "./ui"
 
 type Variant = { id: string; name: string; price: number }
 type Product = {
@@ -169,7 +169,23 @@ function QuantitySelector({
 /* ─────────────────────────────────────────────────────────────
    Catalog
    ───────────────────────────────────────────────────────────── */
-export default function Catalog({ initialProducts, waNumber }: { initialProducts: Product[]; waNumber: string }) {
+export default function Catalog({
+  initialProducts,
+  waNumber,
+  storeName,
+  title,
+  deliveryStart,
+  deliveryEnd,
+  minDays,
+}: {
+  initialProducts: Product[]
+  waNumber: string
+  storeName: string
+  title: string
+  deliveryStart: string
+  deliveryEnd: string
+  minDays: number
+}) {
   // Filter & sort
   const [activeCategory, setActiveCategory] = useState<string>("Semua")
   const [priceRange, setPriceRange] = useState<PriceKey>("all")
@@ -196,7 +212,9 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
   // Cart drawer / checkout
   const [cartOpen, setCartOpen] = useState(false)
   const [checkoutStep, setCheckoutStep] = useState<"cart" | "form">("cart")
-  const [customerInfo, setCustomerInfo] = useState({ name: "", address: "", date: "" })
+  const [customerInfo, setCustomerInfo] = useState({ name: "", address: "", date: "", time: "", note: "" })
+  const [introKey, setIntroKey] = useState(0)
+  useEvent(EVT.introDone, () => setIntroKey((k) => k + 1))
   const [expandedBox, setExpandedBox] = useState<number | null>(null)
 
   // Toast
@@ -272,7 +290,7 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
     return sorted
   }, [initialProducts, activeCategory, priceRange, sortBy, query, isBuildingBox])
 
-  const gridKey = `${activeCategory}|${priceRange}|${sortBy}|${query}|${isBuildingBox}`
+  const gridKey = `${activeCategory}|${priceRange}|${sortBy}|${query}|${isBuildingBox}|${introKey}`
   const filtersActive = activeCategory !== "Semua" || priceRange !== "all" || !!query
 
   const resetFilters = () => {
@@ -360,9 +378,12 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
   // ── WhatsApp checkout ────────────────────────────────────
   const handleCheckout = () => {
     if (grandTotalItems === 0) return showToast("Keranjang belanja Anda masih kosong!", "error")
-    if (!customerInfo.name || !customerInfo.address || !customerInfo.date) return showToast("Mohon lengkapi data pengiriman!", "error")
+    if (!customerInfo.name.trim()) return showToast("Nama pemesan belum diisi", "error")
+    if (!customerInfo.address.trim()) return showToast("Alamat pengiriman belum diisi", "error")
+    if (!customerInfo.date) return showToast("Tanggal pengiriman belum dipilih", "error")
+    if (!customerInfo.time) return showToast("Jam pengiriman belum dipilih", "error")
 
-    let text = `Halo Kauny Catering, saya ingin pesan:\n\n`
+    let text = `Halo ${storeName}, saya ingin pesan:\n\n`
     if (Object.keys(normalCart).length > 0) {
       text += `*Pesanan Satuan:*\n`
       Object.entries(normalCart).forEach(([key, qty]) => {
@@ -384,18 +405,19 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
       })
       text += `\n`
     }
-    const tgl = new Date(customerInfo.date + "T00:00:00").toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
     text += `*Total Harga Keseluruhan: ${formatPrice(grandTotalPrice)}*\n\n`
-    text += `*Data Pengiriman:*\nNama: ${customerInfo.name}\nAlamat: ${customerInfo.address}\nTanggal: ${tgl}\n`
+    text += `*Data Pengiriman:*\nNama: ${customerInfo.name}\nAlamat: ${customerInfo.address}\nTanggal: ${formatTanggal(customerInfo.date)}\nJam: ${customerInfo.time.replace(":", ".")} WIB\n`
+    if (customerInfo.note.trim()) text += `Catatan: ${customerInfo.note.trim()}\n`
 
     window.open(`https://wa.me/${waNumber}?text=${encodeURIComponent(text)}`, "_blank")
   }
 
-  const todayStr = useMemo(() => {
+  // Tanggal paling cepat pengiriman (mengikuti pengaturan "minimal H-" di admin)
+  const minDate = useMemo(() => {
     const d = new Date()
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
-    return d.toISOString().slice(0, 10)
-  }, [])
+    d.setDate(d.getDate() + minDays)
+    return toISODate(d)
+  }, [minDays])
 
   const mp = selectedProduct || lastProduct
   const modalUnitPrice = mp
@@ -404,18 +426,15 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
       : mp.price
     : 0
 
-  const categoryOptions = categories.map((c) => ({
-    value: c,
-    label: c === "Semua" ? "Semua Kategori" : c,
-    hint: `${c === "Semua" ? initialProducts.length : initialProducts.filter((p) => p.categories?.some((x) => x.name === c)).length} menu`,
-  }))
-
   const openCart = () => {
     setCheckoutStep("cart")
     setCartOpen(true)
   }
 
   /* ═════════════════════════ RENDER ═════════════════════════ */
+  const building = isBuildingBox && draftCount > 0
+  const showBar = !cartOpen && (building || grandTotalItems > 0)
+
   return (
     <>
       {/* Toast */}
@@ -426,66 +445,43 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
         </div>
       </div>
 
-      {/* ── Heading ───────────────────────────── */}
-      <Reveal className="flex items-end justify-between gap-4 mb-4">
-        <div>
-          <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand-600 mb-1.5">{isBuildingBox ? "Mode racik paket" : "Katalog"}</div>
-          <h2 className="text-xl sm:text-3xl font-extrabold text-ink tracking-tight">{isBuildingBox ? "Racik Snack Box" : "Semua Menu"}</h2>
+      {/* ── Judul + urutkan ───────────────────── */}
+      <div className="flex items-end justify-between gap-3 mb-3 animate-fade-up">
+        <div className="min-w-0">
+          <h1 className="text-[20px] sm:text-3xl font-extrabold text-ink tracking-tight leading-tight">{isBuildingBox ? "Racik Snack Box" : title}</h1>
+          <p className="text-[12.5px] sm:text-sm text-ink-faded mt-1">
+            {isBuildingBox ? "Tekan “Masukkan Box” pada menu untuk mengisi 1 box." : "Pilih menu, isi alamat, lalu kirim pesanan lewat WhatsApp."}
+          </p>
         </div>
-        <div className="text-[12px] sm:text-[13px] text-ink-faded pb-0.5">
-          <b className="text-ink">{visibleProducts.length}</b> menu
-        </div>
-      </Reveal>
-
-      {/* ── Filter bar ───────────────────────── */}
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        <Dropdown
-          value={activeCategory}
-          options={categoryOptions}
-          onChange={(v) => {
-            setIsBuildingBox(false)
-            setActiveCategory(v)
-          }}
-          variant="solid"
-          className="flex-1 sm:flex-none min-w-0"
-          fullWidth
-          menuTitle="Kategori"
-        />
-        <div className="hidden sm:block">
-          <Dropdown value={priceRange} options={PRICE_RANGES.map(({ value, label }) => ({ value, label }))} onChange={setPriceRange} label="Harga" variant="outline" menuTitle="Rentang harga" />
-        </div>
-        <button
-          onClick={() => setIsBuildingBox((b) => !b)}
-          className={`hidden sm:inline-flex items-center h-9 px-3.5 rounded-lg border text-[13px] font-semibold transition-all duration-300 ease-smooth
-            ${isBuildingBox ? "bg-accent border-accent text-brand-950" : "bg-white border-hairline text-ink hover:border-brand-300"}`}
-        >
-          {isBuildingBox ? "Keluar mode racik" : "Racik Snack Box"}
-        </button>
-        {filtersActive && (
-          <button onClick={resetFilters} className="hidden sm:inline-flex h-9 px-2 text-[13px] font-semibold text-ink-faded hover:text-cherry transition-colors animate-fade-up">
-            Reset
-          </button>
-        )}
-        <div className="sm:ml-auto">
-          <Dropdown value={sortBy} options={SORTS} onChange={setSortBy} placeholder="Urutkan" variant="outline" align="right" menuTitle="Urutkan" />
-        </div>
+        <Dropdown value={sortBy} options={SORTS} onChange={setSortBy} placeholder="Urutkan" variant="outline" align="right" menuTitle="Urutkan" className="shrink-0" />
       </div>
 
-      {/* HP: ajakan racik paket (ganti tombol di filter) */}
-      {!isBuildingBox && (
+      {/* ── Kategori (tombol besar, bisa digeser) ── */}
+      <div className="-mx-4 px-4 sm:mx-0 sm:px-0 flex gap-2 overflow-x-auto no-scrollbar pb-1 mb-4 animate-fade-up" style={{ animationDelay: "80ms" }}>
+        {categories.map((c) => {
+          const active = !isBuildingBox && activeCategory === c
+          return (
+            <button
+              key={c}
+              onClick={() => {
+                setIsBuildingBox(false)
+                setActiveCategory(c)
+              }}
+              className={`shrink-0 h-9 px-4 rounded-lg text-[13px] font-semibold transition-all duration-300 ease-smooth ${active ? "bg-brand-800 text-white shadow-soft" : "bg-surface-1 text-ink-body hover:bg-brand-50"}`}
+            >
+              {c === "Semua" ? "Semua" : c}
+            </button>
+          )
+        })}
         <button
-          onClick={() => setIsBuildingBox(true)}
-          className="sm:hidden w-full mb-4 flex items-center justify-between gap-3 rounded-lg bg-accent-soft px-4 py-3 text-left"
+          onClick={() => setIsBuildingBox((b) => !b)}
+          className={`shrink-0 h-9 px-4 rounded-lg text-[13px] font-bold transition-all duration-300 ease-smooth ${isBuildingBox ? "bg-accent text-brand-950 shadow-soft" : "bg-accent-soft text-brand-900 hover:bg-accent/60"}`}
         >
-          <span>
-            <span className="block text-[13px] font-bold text-brand-900">Racik snack box sendiri</span>
-            <span className="block text-[11.5px] text-ink-body mt-0.5">Pilih isi, kemasan, lalu jumlah box</span>
-          </span>
-          <ArrowRight size={16} className="text-brand-800 shrink-0" />
+          {isBuildingBox ? "Selesai racik" : "+ Racik Snack Box"}
         </button>
-      )}
+      </div>
 
-      {/* Active search chip */}
+      {/* Hasil pencarian */}
       {query && (
         <div className="mb-4 flex items-center gap-2 text-[13px] animate-fade-up">
           <span className="text-ink-faded">Hasil untuk</span>
@@ -498,17 +494,17 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
         </div>
       )}
 
-      {/* ── Builder panel (tanpa modal: kemasan & jumlah langsung di sini) ── */}
+      {/* ── Panel racik snack box ───────────── */}
       <div id="builder" className={`grid scroll-mt-32 transition-all duration-500 ease-smooth ${isBuildingBox ? "grid-rows-[1fr] opacity-100 mb-5" : "grid-rows-[0fr] opacity-0 mb-0"}`}>
         <div className="overflow-hidden">
           <div className="rounded-xl border border-brand-200 bg-brand-50/60 p-4 sm:p-6">
-            <div className="flex items-start justify-between gap-3 mb-4">
+            <div className="flex items-start justify-between gap-3 mb-3">
               <div>
                 <h3 className="text-[15px] sm:text-lg font-bold text-ink">Isi 1 box</h3>
-                <p className="text-[12px] sm:text-[13px] text-ink-faded mt-0.5">Tekan + pada menu di bawah untuk menambah isi.</p>
+                <p className="text-[12px] sm:text-[13px] text-ink-faded mt-0.5">Setelah isi cukup, pilih kemasan dan jumlah box, lalu Simpan.</p>
               </div>
               <button onClick={() => setIsBuildingBox(false)} className="shrink-0 text-[12px] font-semibold text-ink-faded hover:text-cherry">
-                Batal
+                Tutup
               </button>
             </div>
 
@@ -532,9 +528,7 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
                 })}
               </ul>
             ) : (
-              <div className="rounded-lg border border-dashed border-brand-200 bg-white/70 px-4 py-5 text-center text-[13px] text-ink-faded">
-                Box masih kosong.
-              </div>
+              <div className="rounded-lg border border-dashed border-brand-200 bg-white/70 px-4 py-5 text-center text-[13px] text-ink-faded">Box masih kosong.</div>
             )}
 
             <div className={`grid transition-all duration-500 ease-smooth ${draftCount > 0 ? "grid-rows-[1fr] opacity-100 mt-4" : "grid-rows-[0fr] opacity-0"}`}>
@@ -561,7 +555,7 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
         </div>
       </div>
 
-      {/* ── Product grid ───────────────────── */}
+      {/* ── Daftar menu ───────────────────── */}
       {visibleProducts.length > 0 ? (
         <div key={gridKey} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-4">
           {visibleProducts.map((p, i) => {
@@ -572,7 +566,7 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
             const price = displayPrice(p)
             const fromPrice = p.hasVariants && p.variantType === "DIFFERENT_PRICE" && (p.variants?.length || 0) > 1
             const cat = p.categories?.[0]?.name
-            const subline = p.hasVariants && p.variants?.length ? `${p.variants.length} varian` : p.categories?.map((c) => c.name).join(", ") || "Menu satuan"
+            const subline = p.hasVariants && p.variants?.length ? `${p.variants.length} pilihan varian` : p.categories?.map((c) => c.name).join(", ") || "Menu satuan"
             const showStepper = !isBuildingBox && inCartQty > 0 && !p.hasVariants
 
             const onAdd = () => {
@@ -598,32 +592,28 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
                 </div>
 
                 <div className="flex flex-col flex-1 px-1 pt-2.5">
-                  <h3 className="text-[12.5px] sm:text-[14px] font-semibold text-ink leading-snug line-clamp-2 min-h-[2.5em]">{p.name}</h3>
+                  <h3 className="text-[13px] sm:text-[14px] font-semibold text-ink leading-snug line-clamp-2 min-h-[2.5em]">{p.name}</h3>
                   <div className="mt-0.5 text-[11px] sm:text-[12px] text-ink-faded truncate">{subline}</div>
+                  <div className="mt-auto pt-2 leading-tight">
+                    {fromPrice && <span className="text-[10.5px] text-ink-faded mr-1">Mulai</span>}
+                    <span className="text-[15px] sm:text-base font-extrabold text-ink">{formatPrice(price)}</span>
+                  </div>
 
-                  <div className="mt-auto pt-2.5">
+                  <div className="pt-2">
                     {showStepper ? (
-                      <>
-                        <div className="text-[14px] sm:text-base font-extrabold text-ink mb-1.5">{formatPrice(price)}</div>
-                        <div className="animate-fade-up">
-                          <QuantitySelector value={inCartQty} size="sm" tone="dark" full onChange={(q) => updateNormalCartQty(p.id, q)} onRemove={() => updateNormalCartQty(p.id, 0)} />
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex items-end justify-between gap-2">
-                        <div className="leading-tight min-w-0">
-                          {fromPrice && <div className="text-[10px] text-ink-faded">Mulai</div>}
-                          <div className="text-[14px] sm:text-base font-extrabold text-ink truncate">{formatPrice(price)}</div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={onAdd}
-                          className={`add-fab ${isBuildingBox ? "bg-accent text-brand-950 hover:bg-accent-hover" : ""}`}
-                          aria-label={isBuildingBox ? "Tambah ke box" : "Tambah ke keranjang"}
-                        >
-                          <Plus size={16} strokeWidth={2.6} />
-                        </button>
+                      <div className="animate-fade-up">
+                        <QuantitySelector value={inCartQty} tone="dark" full onChange={(q) => updateNormalCartQty(p.id, q)} onRemove={() => updateNormalCartQty(p.id, 0)} />
                       </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={onAdd}
+                        className={`w-full h-10 rounded-lg text-[13px] font-bold transition-all duration-200 ease-smooth active:scale-[0.97]
+                          ${isBuildingBox ? "bg-accent text-brand-950 hover:bg-accent-hover" : p.hasVariants ? "bg-white border border-brand-700 text-brand-800 hover:bg-brand-50" : "bg-brand-800 text-white hover:bg-brand-900"}`}
+                        aria-label={isBuildingBox ? `Masukkan ${p.name} ke box` : `Tambah ${p.name}`}
+                      >
+                        {p.hasVariants ? "Pilih Varian" : isBuildingBox ? "+ Masukkan Box" : "+ Tambah"}
+                      </button>
                     )}
                   </div>
                 </div>
@@ -635,17 +625,17 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
         <div className="text-center rounded-xl bg-surface-1 px-6 py-14 animate-fade-up">
           <h3 className="text-base font-bold text-ink">Menu tidak ditemukan</h3>
           <p className="text-[13px] text-ink-faded mt-1">
-            {initialProducts.length === 0 ? "Belum ada menu yang ditambahkan." : "Coba ubah kata kunci, kategori, atau rentang harga."}
+            {initialProducts.length === 0 ? "Belum ada menu yang ditambahkan." : "Coba kata lain atau pilih kategori “Semua”."}
           </p>
           {filtersActive && (
             <button onClick={resetFilters} className="btn btn-outline mt-4">
-              Reset filter
+              Tampilkan semua menu
             </button>
           )}
         </div>
       )}
 
-      {/* ── Modal varian (hanya untuk produk yang punya varian) ── */}
+      {/* ── Popup varian (hanya untuk menu yang punya varian) ── */}
       <Modal open={!!selectedProduct} onClose={() => setSelectedProduct(null)} size="lg" bare>
         {mp && (
           <div className="sm:grid sm:grid-cols-[240px_1fr]">
@@ -679,96 +669,111 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
                 </div>
               )}
 
-              <div className="mt-5 flex items-center gap-3">
-                <div className="w-[120px] shrink-0">
-                  <QuantitySelector value={modalQty} onChange={setModalQty} full />
+              <div className="mt-5">
+                <div className="form-label">Jumlah</div>
+                <div className="flex items-center gap-3">
+                  <div className="w-[120px] shrink-0">
+                    <QuantitySelector value={modalQty} onChange={setModalQty} full />
+                  </div>
+                  <button
+                    className={`btn flex-1 justify-between px-4 ${modalMode === "snack_box" ? "btn-accent" : ""}`}
+                    onClick={() => {
+                      if (!selectedProduct) return
+                      const vId = selectedProduct.hasVariants ? selectedVariantId : undefined
+                      if (modalMode === "snack_box") addToDraftBox(selectedProduct, vId, modalQty)
+                      else addToNormalCart(selectedProduct, vId, modalQty)
+                    }}
+                  >
+                    <span>{modalMode === "snack_box" ? "Masukkan box" : "Tambah"}</span>
+                    <span className="font-extrabold">{formatPrice(modalUnitPrice * modalQty)}</span>
+                  </button>
                 </div>
-                <button
-                  className={`btn flex-1 justify-between px-4 ${modalMode === "snack_box" ? "btn-accent" : ""}`}
-                  onClick={() => {
-                    if (!selectedProduct) return
-                    const vId = selectedProduct.hasVariants ? selectedVariantId : undefined
-                    if (modalMode === "snack_box") addToDraftBox(selectedProduct, vId, modalQty)
-                    else addToNormalCart(selectedProduct, vId, modalQty)
-                  }}
-                >
-                  <span>{modalMode === "snack_box" ? "Masukkan box" : "Tambah"}</span>
-                  <span className="font-extrabold">{formatPrice(modalUnitPrice * modalQty)}</span>
-                </button>
               </div>
             </div>
           </div>
         )}
       </Modal>
 
-      {/* ── Floating bar (HP & desktop) ─────── */}
-      {(() => {
-        const building = isBuildingBox && draftCount > 0
-        const show = !cartOpen && (building || grandTotalItems > 0)
-        return (
-          <div
-            className={`fixed inset-x-0 bottom-0 z-[90] px-3 pb-3 sm:pb-5 pointer-events-none transition-all duration-500 ease-smooth
-            ${show ? "translate-y-0 opacity-100" : "translate-y-[140%] opacity-0"}`}
-          >
-            <button
-              onClick={() => (building ? scrollToId("builder", 130) : openCart())}
-              className="pointer-events-auto mx-auto flex w-full max-w-lg items-center gap-3 rounded-xl bg-brand-950/95 backdrop-blur-xl p-1.5 pl-4 text-white shadow-pop hover:bg-brand-950 transition-colors group"
-            >
-              <span className="flex-1 text-left leading-tight">
-                <span className="block text-[11px] text-white/60">{building ? `Isi box · ${draftCount} item` : `${grandTotalItems} item di keranjang`}</span>
-                <span className="block text-[14px] font-extrabold">{building ? `${formatPrice(draftBoxTotalPrice)} / box` : formatPrice(grandTotalPrice)}</span>
-              </span>
-              <span className="inline-flex items-center gap-1.5 h-10 px-4 rounded-lg bg-accent text-brand-950 text-[13px] font-bold">
-                {building ? "Atur kemasan" : "Checkout"}
-                <ArrowRight size={15} className="transition-transform group-hover:translate-x-0.5" />
-              </span>
-            </button>
-          </div>
-        )
-      })()}
+      {/* ── Bar bawah ─────────────────────── */}
+      <div
+        className={`fixed inset-x-0 bottom-0 z-[90] px-3 pb-3 sm:pb-5 pointer-events-none transition-all duration-500 ease-smooth
+        ${showBar ? "translate-y-0 opacity-100" : "translate-y-[140%] opacity-0"}`}
+      >
+        <button
+          onClick={() => (building ? scrollToId("builder", 120) : openCart())}
+          className="pointer-events-auto mx-auto flex w-full max-w-lg items-center gap-3 rounded-xl bg-brand-950/95 backdrop-blur-xl p-1.5 pl-4 text-white shadow-pop hover:bg-brand-950 transition-colors group"
+        >
+          <span className="flex-1 text-left leading-tight">
+            <span className="block text-[11.5px] text-white/60">{building ? `Isi box: ${draftCount} item` : `${grandTotalItems} item dipilih`}</span>
+            <span className="block text-[15px] font-extrabold">{building ? `${formatPrice(draftBoxTotalPrice)} / box` : formatPrice(grandTotalPrice)}</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5 h-11 px-4 rounded-lg bg-accent text-brand-950 text-[13.5px] font-bold">
+            {building ? "Atur kemasan" : "Lanjut Pesan"}
+            <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
+          </span>
+        </button>
+      </div>
 
-      {/* ── Cart drawer ─────────────────────── */}
+      {/* ── Keranjang ─────────────────────── */}
       <Drawer
         open={cartOpen}
         onClose={() => setCartOpen(false)}
-        title={
-          checkoutStep === "cart" ? (
-            <span>Keranjang <span className="text-ink-faded font-semibold">({grandTotalItems})</span></span>
-          ) : (
-            <button onClick={() => setCheckoutStep("cart")} className="hover:text-brand-700 transition-colors">
-              ← Data Pengiriman
-            </button>
-          )
-        }
+        title={checkoutStep === "cart" ? "Pesanan Anda" : "Data Pengiriman"}
         footer={
           grandTotalItems > 0 ? (
             <div>
               <div className="flex items-center justify-between mb-3">
-                <span className="text-[13px] text-ink-faded">Total</span>
+                <span className="text-[13px] text-ink-faded">Total bayar</span>
                 <span className="text-lg font-extrabold text-brand-800">{formatPrice(grandTotalPrice)}</span>
               </div>
               {checkoutStep === "cart" ? (
-                <button className="btn w-full h-11" onClick={() => setCheckoutStep("form")}>
-                  Lanjut ke Pengiriman
+                <button className="btn w-full h-12 text-[14px]" onClick={() => setCheckoutStep("form")}>
+                  Lanjut Isi Alamat
+                  <ArrowRight size={16} />
                 </button>
               ) : (
-                <button className="btn btn-wa w-full h-11" onClick={handleCheckout}>
-                  Kirim Pesanan via WhatsApp
-                </button>
+                <div className="flex gap-2">
+                  <button className="btn btn-outline h-12 px-4" onClick={() => setCheckoutStep("cart")}>
+                    Kembali
+                  </button>
+                  <button className="btn btn-wa flex-1 h-12 text-[14px]" onClick={handleCheckout}>
+                    Kirim lewat WhatsApp
+                  </button>
+                </div>
               )}
             </div>
           ) : undefined
         }
       >
+        {grandTotalItems > 0 && (
+          <div className="px-4 sm:px-5 pt-4">
+            <div className="grid grid-cols-2 gap-1.5">
+              {["Cek pesanan", "Isi alamat & kirim"].map((label, i) => {
+                const active = (checkoutStep === "cart" ? 0 : 1) >= i
+                return (
+                  <div key={label}>
+                    <div className="h-1 rounded-full bg-surface-2 overflow-hidden">
+                      <div className={`h-full bg-brand-700 transition-all duration-500 ease-smooth ${active ? "w-full" : "w-0"}`} />
+                    </div>
+                    <div className={`mt-1.5 text-[11.5px] font-semibold transition-colors ${active ? "text-brand-800" : "text-ink-faded"}`}>
+                      {i + 1}. {label}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {grandTotalItems === 0 ? (
           <div className="flex flex-col items-center justify-center text-center h-full px-8 py-16">
             <h3 className="text-base font-bold text-ink">Keranjang masih kosong</h3>
-            <p className="text-[13px] text-ink-faded mt-1">Pilih menu favorit atau racik snack box Anda.</p>
+            <p className="text-[13px] text-ink-faded mt-1">Tekan “+ Tambah” pada menu yang ingin dipesan.</p>
             <button
               className="btn mt-5"
               onClick={() => {
                 setCartOpen(false)
-                setTimeout(() => scrollToId("menu", 130), 350)
+                setTimeout(() => scrollToId("menu", 120), 350)
               }}
             >
               Lihat Menu
@@ -778,7 +783,7 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
           <div key="cart" className="p-4 sm:p-5 space-y-5 animate-fade-up">
             {Object.keys(normalCart).length > 0 && (
               <section>
-                <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-faded mb-2">Produk satuan</div>
+                <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-faded mb-1">Menu satuan</div>
                 <ul className="divide-y divide-hairline">
                   {Object.entries(normalCart).map(([key, qty]) => {
                     const info = getCartItemInfo(key)
@@ -791,7 +796,7 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
                           {info.variant && <div className="text-[11.5px] text-ink-faded">{info.variant.name}</div>}
                           <div className="text-[13px] font-bold text-brand-800">{formatPrice(info.price * qty)}</div>
                         </div>
-                        <div className="w-[104px] shrink-0">
+                        <div className="w-[108px] shrink-0">
                           <QuantitySelector value={qty} size="sm" full onChange={(q) => updateNormalCartQty(key, q)} onRemove={() => updateNormalCartQty(key, 0)} />
                         </div>
                       </li>
@@ -815,17 +820,11 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
                             <div className="text-[13px] font-bold text-ink">Paket {index + 1}</div>
                             <div className="text-[11.5px] text-ink-faded">{box.pkg} · {formatPrice(unit)}/box</div>
                           </div>
-                          <button
-                            className="text-[12px] font-semibold text-ink-faded hover:text-red-600 transition-colors"
-                            onClick={() => setSnackBoxes((prev) => prev.filter((_, i) => i !== index))}
-                          >
+                          <button className="text-[12px] font-semibold text-ink-faded hover:text-red-600 transition-colors" onClick={() => setSnackBoxes((prev) => prev.filter((_, i) => i !== index))}>
                             Hapus
                           </button>
                         </div>
-                        <button
-                          onClick={() => setExpandedBox(open ? null : index)}
-                          className="mx-3 mt-1.5 flex items-center gap-1 text-[12px] font-semibold text-brand-700"
-                        >
+                        <button onClick={() => setExpandedBox(open ? null : index)} className="mx-3 mt-1.5 flex items-center gap-1 text-[12px] font-semibold text-brand-700">
                           {open ? "Sembunyikan isi" : `Lihat isi (${Object.keys(box.items).length})`}
                           <ChevronDown size={13} className={`transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
                         </button>
@@ -841,13 +840,8 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
                         </div>
                         <div className="flex items-center justify-between gap-3 p-3">
                           <span className="text-[13px] font-bold text-brand-800">{formatPrice(unit * box.qty)}</span>
-                          <div className="w-[104px]">
-                            <QuantitySelector
-                              value={box.qty}
-                              size="sm"
-                              full
-                              onChange={(val) => setSnackBoxes((prev) => prev.map((b, i) => (i === index ? { ...b, qty: val } : b)))}
-                            />
+                          <div className="w-[108px]">
+                            <QuantitySelector value={box.qty} size="sm" full onChange={(val) => setSnackBoxes((prev) => prev.map((b, i) => (i === index ? { ...b, qty: val } : b)))} />
                           </div>
                         </div>
                       </li>
@@ -861,33 +855,51 @@ export default function Catalog({ initialProducts, waNumber }: { initialProducts
               onClick={() => {
                 setCartOpen(false)
                 setIsBuildingBox(true)
-                setTimeout(() => scrollToId("menu", 130), 350)
+                setTimeout(() => scrollToId("menu", 120), 350)
               }}
               className="w-full h-10 rounded-lg border border-dashed border-brand-300 text-[13px] font-semibold text-brand-700 hover:bg-brand-50 transition-colors"
             >
-              + Racik paket snack box baru
+              + Racik paket snack box
             </button>
           </div>
         ) : (
           <div key="form" className="p-4 sm:p-5 animate-fade-up">
-            <p className="text-[13px] text-ink-faded mb-5">Isi data berikut, lalu pesanan dikirim ke admin lewat WhatsApp.</p>
             <div className="form-group">
               <label className="form-label">Nama pemesan</label>
-              <input className="form-input" value={customerInfo.name} onChange={(e) => setCustomerInfo({ ...customerInfo, name: e.target.value })} placeholder="Nama lengkap Anda" />
+              <input className="form-input" value={customerInfo.name} onChange={(e) => setCustomerInfo({ ...customerInfo, name: e.target.value })} placeholder="Contoh: Bu Siti" autoComplete="name" />
             </div>
             <div className="form-group">
-              <label className="form-label">Alamat pengiriman</label>
+              <label className="form-label">Alamat lengkap</label>
               <textarea
                 className="form-input"
                 rows={3}
                 value={customerInfo.address}
                 onChange={(e) => setCustomerInfo({ ...customerInfo, address: e.target.value })}
-                placeholder="RT/RW, Kelurahan, Kecamatan, Kota"
+                placeholder="Dusun, RT/RW, desa, patokan rumah (misal: dekat masjid)"
               />
             </div>
+            <div className="grid grid-cols-1 min-[420px]:grid-cols-[1.4fr_1fr] gap-3">
+              <div className="form-group">
+                <label className="form-label">Tanggal antar</label>
+                <DatePicker value={customerInfo.date} min={minDate} onChange={(v) => setCustomerInfo((c) => ({ ...c, date: v }))} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Jam antar</label>
+                <TimePicker value={customerInfo.time} start={deliveryStart} end={deliveryEnd} onChange={(v) => setCustomerInfo((c) => ({ ...c, time: v }))} />
+              </div>
+            </div>
+            {minDays > 0 && <p className="form-help -mt-2 mb-4">Pesanan paling cepat diantar H-{minDays} dari hari ini.</p>}
             <div className="form-group">
-              <label className="form-label">Tanggal pengiriman</label>
-              <input type="date" min={todayStr} className="form-input" value={customerInfo.date} onChange={(e) => setCustomerInfo({ ...customerInfo, date: e.target.value })} />
+              <label className="form-label">
+                Catatan <span className="font-normal text-ink-faded">(boleh dikosongkan)</span>
+              </label>
+              <textarea
+                className="form-input"
+                rows={2}
+                value={customerInfo.note}
+                onChange={(e) => setCustomerInfo({ ...customerInfo, note: e.target.value })}
+                placeholder="Misal: tidak pedas, tolong telepon dulu"
+              />
             </div>
           </div>
         )}

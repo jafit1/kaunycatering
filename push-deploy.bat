@@ -106,7 +106,10 @@ echo       Push berhasil.
 REM ---------- 5. Deploy ke Vercel ----------
 echo.
 echo [5/5] Deploy ke Vercel (production)...
-if not exist ".vercel\project.json" (
+set "VLINKED="
+if exist ".vercel\project.json" set "VLINKED=1"
+if exist ".vercel\repo.json" set "VLINKED=1"
+if not defined VLINKED (
   echo       Folder belum terhubung ke project Vercel.
   echo       Ikuti pertanyaan berikut dan PILIH PROJECT YANG SUDAH ADA
   echo       agar tidak membuat project baru.
